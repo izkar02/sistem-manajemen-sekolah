@@ -43,6 +43,6 @@ const app = new Elysia()
     return Bun.file("./public/login.html");
   })
 
-  .listen(3000);
+  .listen(Number(process.env.PORT) || 3000);
 
 console.log(`🚀 Server running at http://localhost:${app.server?.port}`);
