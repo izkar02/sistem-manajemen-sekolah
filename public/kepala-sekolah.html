@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <title>Halaman Kepala Sekolah - Sistem Manajemen Sekolah</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./css/kepala.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <h2 class="logo">SMS Kepala Sekolah</h2>
+        <nav>
+          <button data-page="dashboard">Dashboard</button>
+          <button data-page="rekap">Rekap Kehadiran</button>
+          <button data-page="jadwal">Jadwal Pelajaran</button>
+          <button data-page="guru">Data Guru</button>
+          <button data-page="siswa">Data Siswa</button>
+          <button data-page="password">Ganti Password</button>
+        </nav>
+      </aside>
+
+      <!-- MAIN -->
+      <div class="main">
+        <header class="topbar">
+          <button id="menuToggle" class="menu-toggle">☰</button>
+          <span id="info">Memuat...</span>
+          <button id="logoutBtn" class="logout">Logout</button>
+        </header>
+
+        <main id="content">
+          <!-- DASHBOARD -->
+          <section id="page-dashboard" class="page active">
+            <h1>Dashboard Kepala Sekolah</h1>
+            <div class="cards">
+              <div class="card">
+                <h3>Guru</h3>
+                <p id="count-guru">0</p>
+              </div>
+              <div class="card">
+                <h3>Siswa</h3>
+                <p id="count-siswa">0</p>
+              </div>
+              <div class="card">
+                <h3>Kelas</h3>
+                <p id="count-kelas">0</p>
+              </div>
+            </div>
+
+            <h2 class="mt-24">Statistik Kehadiran Sekolah</h2>
+            <div class="hint mb-8" id="dashStatSemesterLabel">
+              Memuat semester aktif...
+            </div>
+
+            <h3 class="mb-8">Hari Ini</h3>
+            <div class="cards">
+              <div class="card">
+                <h3>Sesi</h3>
+                <p id="st-sessions">0</p>
+              </div>
+              <div class="card">
+                <h3>Hadir</h3>
+                <p id="st-hadir">0</p>
+              </div>
+              <div class="card">
+                <h3>Izin</h3>
+                <p id="st-izin">0</p>
+              </div>
+              <div class="card">
+                <h3>Sakit</h3>
+                <p id="st-sakit">0</p>
+              </div>
+              <div class="card">
+                <h3>Alpha</h3>
+                <p id="st-alpha">0</p>
+              </div>
+            </div>
+
+            <h3 class="mt-16-8">Semester Berjalan</h3>
+            <div class="cards">
+              <div class="card">
+                <h3>Sesi</h3>
+                <p id="ss-sessions">0</p>
+              </div>
+              <div class="card">
+                <h3>Hadir</h3>
+                <p id="ss-hadir">0</p>
+              </div>
+              <div class="card">
+                <h3>Izin</h3>
+                <p id="ss-izin">0</p>
+              </div>
+              <div class="card">
+                <h3>Sakit</h3>
+                <p id="ss-sakit">0</p>
+              </div>
+              <div class="card">
+                <h3>Alpha</h3>
+                <p id="ss-alpha">0</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- REKAP KEHADIRAN -->
+          <section id="page-rekap" class="page">
+            <h1>Rekap Kehadiran per Kelas</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Pilih Kelas & Semester</strong>
+                  <div class="hint">
+                    Rekap mencakup seluruh guru yang mengajar di kelas tersebut
+                  </div>
+                </div>
+              </div>
+
+              <div class="row filter-row">
+                <div class="col filter-col">
+                  <label class="filter-label">Kelas</label>
+                  <select id="rekapKelasSelect" class="filter-select">
+                    <option value="">— Pilih Kelas —</option>
+                  </select>
+                </div>
+                <div class="col filter-col">
+                  <label class="filter-label">Semester</label>
+                  <select id="rekapSemesterSelect" class="filter-select">
+                    <option value="">— Pilih Semester —</option>
+                  </select>
+                </div>
+                <div class="col filter-col-actions">
+                  <button
+                    id="btnTampilkanRekap"
+                    class="form-grid button btn-blue"
+                  >
+                    Tampilkan
+                  </button>
+                  <button id="btnExportXlsx" class="ghost" disabled>
+                    Export Excel
+                  </button>
+                </div>
+              </div>
+
+              <div id="rekapResult" class="hidden">
+                <div id="rekapHeader" class="meta mb-8"></div>
+                <table class="schedule-table text-left">
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>NIS</th>
+                      <th>Nama</th>
+                      <th>Hadir</th>
+                      <th>Izin</th>
+                      <th>Sakit</th>
+                      <th>Alpha</th>
+                      <th>Persentase Hadir</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rekapTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- JADWAL -->
+          <section id="page-jadwal" class="page">
+            <h1>Jadwal Pelajaran</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Jadwal Tersimpan</strong>
+                  <div class="hint">
+                    Pilih salah satu jadwal untuk melihat detail per kelas
+                  </div>
+                </div>
+              </div>
+
+              <div id="kepala_jadwalWrap" class="mt-12"></div>
+
+              <div id="kepala_jadwalDetail" class="card-table mt-12"></div>
+            </div>
+          </section>
+
+          <!-- GURU -->
+          <section id="page-guru" class="page">
+            <h1>Data Guru</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Guru Sekolah</strong>
+                  <div class="hint">
+                    Cari nama / NIP / email — hasil muncul langsung saat
+                    mengetik (tampilan lihat saja)
+                  </div>
+                </div>
+              </div>
+
+              <div class="toolbar-row">
+                <input
+                  id="guruFilterInput"
+                  type="text"
+                  placeholder="Cari guru (nama, NIP, email)..."
+                  class="toolbar-field"
+                />
+                <button id="refreshGuruBtn" class="ghost">Refresh</button>
+              </div>
+
+              <table id="kepalaGuruTable">
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>NIP</th>
+                    <th>JK</th>
+                    <th>Agama</th>
+                    <th>Email</th>
+                    <th>No HP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colspan="6" class="table-loading-cell">Memuat...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <!-- SISWA -->
+          <section id="page-siswa" class="page">
+            <h1>Data Siswa</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Siswa</strong>
+                  <div class="hint">
+                    Filter per kelas, cari nama / NIS — tampilan lihat saja
+                  </div>
+                </div>
+              </div>
+
+              <div class="toolbar-row toolbar-row-wrap">
+                <input
+                  id="siswaQuickFilter"
+                  type="text"
+                  placeholder="Cari siswa (nama, NIS)..."
+                  class="toolbar-field"
+                />
+                <select id="siswaKelasFilter" class="toolbar-select">
+                  <option value="">Semua Kelas</option>
+                </select>
+                <button id="siswaResetFilterBtn" class="ghost">Reset</button>
+              </div>
+
+              <table id="kepalaSiswaTable">
+                <thead>
+                  <tr>
+                    <th>NIS</th>
+                    <th>Nama</th>
+                    <th>JK</th>
+                    <th>Agama</th>
+                    <th>Kelas</th>
+                    <th>No HP Ortu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colspan="6" class="table-loading-cell">Memuat...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- GANTI PASSWORD -->
+          <section id="page-password" class="page">
+            <h1>Ganti Password</h1>
+
+            <div class="card card-narrow">
+              <div class="card-1">
+                <div>
+                  <strong>Ubah Password Akun</strong>
+                  <div class="hint">
+                    Masukkan password lama, lalu password baru Anda
+                  </div>
+                </div>
+              </div>
+
+              <form id="gantiPasswordForm" class="password-form">
+                <div>
+                  <label for="oldPassword">Password Lama</label>
+                  <input
+                    id="oldPassword"
+                    name="oldPassword"
+                    type="password"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="newPassword">Password Baru</label>
+                  <input
+                    id="newPassword"
+                    name="newPassword"
+                    type="password"
+                    minlength="6"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="confirmPassword">Konfirmasi Password Baru</label>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    minlength="6"
+                    required
+                  />
+                </div>
+
+                <div id="gantiPasswordMsg" class="hint password-form-msg"></div>
+
+                <button type="submit" class="btn-submit-blue">
+                  Simpan Password Baru
+                </button>
+              </form>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="module" src="./js/kepala.main.js"></script>
+  </body>
+</html>

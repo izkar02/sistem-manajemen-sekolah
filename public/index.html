@@ -1,0 +1,295 @@
+<!-- HALAMAN PENJADWALAN PROTOTYPE -->
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Penjadwalan Otomatis</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Penjadwalan</h1>
+      <nav class="nav">
+        <button class="ghost" id="btn-view">Tampilan Jadwal</button>
+        <button class="ghost" id="btn-add">Tambah Jadwal</button>
+      </nav>
+    </header>
+
+    <main class="container">
+      <!-- MAIN VIEW -->
+      <section id="view" class="card">
+        <div class="card-1">
+          <div>
+            <strong>Jadwal Tersimpan</strong>
+            <div class="hint">
+              Lihat jadwal yang sudah dibuat untuk seluruh kelas/tingkat
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="primary" id="add-btn-top">
+              + Tambah Jadwal Baru
+            </button>
+          </div>
+        </div>
+
+        <div id="schedulesWrap">
+          <!-- akan diisi oleh JS -->
+        </div>
+      </section>
+
+      <!-- DETAIL SCHEDULE VIEW -->
+      <section id="detailView" class="card card-2">
+        <div class="card-1">
+          <div>
+            <strong>Detail Jadwal</strong>
+            <div class="hint">Hasil penjadwalan otomatis</div>
+          </div>
+          <button class="ghost" id="backToList">Kembali</button>
+        </div>
+
+        <div id="scheduleTableWrap" class="card-table"></div>
+      </section>
+
+      <!-- ADD / FORM VIEW -->
+      <section id="formView" class="card card-2">
+        <div class="card-1">
+          <div>
+            <strong>Buat Jadwal Baru</strong>
+            <div class="hint">
+              Isi data yang diperlukan untuk penjadwalan otomatis menggunakan
+              algoritma genetika.
+            </div>
+          </div>
+          <div>
+            <button class="ghost" id="backBtn">Kembali</button>
+          </div>
+        </div>
+
+        <form id="scheduleForm">
+          <div class="grid-2">
+            <div>
+              <label>Nama Jadwal</label>
+              <input
+                type="text"
+                id="scheduleName"
+                placeholder="Contoh: Semester Genap - 2026"
+                required
+              />
+            </div>
+            <div>
+              <label>Tahun Ajar / Semester</label>
+              <input
+                type="text"
+                id="academic"
+                placeholder="2025/2026 - Semester 1"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col small">
+              <label>Hari per Minggu</label>
+              <input type="number" id="daysPerWeek" value="5" min="1" max="7" />
+            </div>
+            <div class="col small">
+              <label>Jam Pelajaran per Hari (sesi)</label>
+              <input type="number" id="periodsPerDay" value="8" min="1" />
+            </div>
+            <div class="col small">
+              <label>Durasi per Sesi (menit)</label>
+              <input type="number" id="periodDuration" value="35" min="10" />
+            </div>
+          </div>
+
+          <hr />
+          <div>
+            <label>Daftar Kelas (contoh: 1A, 2A, 3A)</label>
+            <div class="list-area" id="classesList"></div>
+            <div class="fieldset">
+              <input
+                type="text"
+                id="classInput"
+                placeholder="Masukkan nama kelas, tekan Tambah"
+              />
+              <button type="button" class="ghost" id="addClassBtn">
+                Tambah
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label>Daftar Mata Pelajaran</label>
+            <div class="hint">
+              Masukkan jumlah pertemuan/minggu per mata pelajaran untuk sebuah
+              kelas (atau pilih "Semua Kelas")
+            </div>
+            <div class="list-area" id="subjectsList"></div>
+            <div class="fieldset">
+              <input
+                type="text"
+                id="subjectName"
+                placeholder="Nama mata pelajaran"
+              />
+              <input
+                type="number"
+                id="subjectFreq"
+                placeholder="Sesi/minggu"
+                min="1"
+                style="width: 140px"
+              />
+              <select id="subjectClassSelect" style="width: 140px">
+                <option value="__all">Semua Kelas</option>
+              </select>
+              <button type="button" class="ghost" id="addSubjectBtn">
+                Tambah
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label>Daftar Guru</label>
+            <div class="hint">
+              Untuk setiap guru pilih mata pelajaran yang dapat diampu dan batas
+              maksimal sesi/minggu
+            </div>
+            <div class="list-area" id="teachersList"></div>
+            <div
+              style="
+                margin-top: 8px;
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                align-items: center;
+              "
+            >
+              <input type="text" id="teacherName" placeholder="Nama guru" />
+              <select id="teacherRole" style="min-width: 160px">
+                <option value="">Pilih peran guru</option>
+                <option value="kelas">Guru Kelas</option>
+                <option value="mapel">Guru Mata Pelajaran</option>
+              </select>
+              <select
+                id="teacherClassSelect"
+                style="min-width: 160px; display: none"
+              >
+                <option value="">Pilih kelas...</option>
+              </select>
+              <select
+                id="teacherSubjectsSelect"
+                multiple
+                style="min-width: 220px; height: 72px"
+              >
+                <!-- populated dynamically -->
+              </select>
+              <input
+                type="number"
+                id="teacherMaxLoad"
+                placeholder="Max sesi/minggu"
+                style="width: 140px"
+                min="1"
+              />
+              <button type="button" class="ghost" id="addTeacherBtn">
+                Tambah
+              </button>
+            </div>
+
+            <!-- Preferensi Guru -->
+            <div style="margin-top: 12px">
+              <label>Preferensi Guru (opsional)</label>
+              <div class="hint">
+                Atur preferensi waktu/ hari untuk guru tertentu
+              </div>
+              <div class="list-area" id="preferencesList"></div>
+              <div
+                style="
+                  display: flex;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                  align-items: center;
+                  margin-top: 8px;
+                "
+              >
+                <select id="prefTeacherSelect" style="min-width: 160px">
+                  <option value="">Pilih guru...</option>
+                </select>
+
+                <div
+                  id="prefDays"
+                  style="display: flex; gap: 6px; align-items: center"
+                >
+                  <label class="muted" style="margin-right: 6px">Hari:</label>
+                  <label
+                    ><input type="checkbox" value="0" class="prefDay" />
+                    Senin</label
+                  >
+                  <label
+                    ><input type="checkbox" value="1" class="prefDay" />
+                    Selasa</label
+                  >
+                  <label
+                    ><input type="checkbox" value="2" class="prefDay" />
+                    Rabu</label
+                  >
+                  <label
+                    ><input type="checkbox" value="3" class="prefDay" />
+                    Kamis</label
+                  >
+                  <label
+                    ><input type="checkbox" value="4" class="prefDay" />
+                    Jumat</label
+                  >
+                  <label
+                    ><input type="checkbox" value="5" class="prefDay" />
+                    Sabtu</label
+                  >
+                </div>
+
+                <input
+                  type="text"
+                  id="prefPeriods"
+                  placeholder="Periode preferensi (contoh: 1,2,3)"
+                  style="min-width: 160px"
+                />
+
+                <input
+                  type="text"
+                  id="prefUnavailable"
+                  placeholder="Slot tak tersedia (contoh: Senin:1, Kamis:3)"
+                  style="min-width: 220px"
+                />
+                <input
+                  type="number"
+                  id="prefPriority"
+                  placeholder="Prioritas (0-10)"
+                  style="width: 120px"
+                  min="0"
+                  max="10"
+                />
+
+                <button type="button" class="ghost" id="savePrefBtn">
+                  Simpan Preferensi
+                </button>
+              </div>
+
+              <div class="hint" style="margin-top: 8px">
+                Preferensi akan disimpan ke data guru dan dikirim ke backend
+                sebagai bagian dari payload.
+              </div>
+            </div>
+          </div>
+
+          <footer>
+            <button type="submit" class="primary">Simpan & Generate</button>
+            <button type="button" class="ghost" id="saveDraft">
+              Simpan Sebagai Draft
+            </button>
+          </footer>
+        </form>
+      </section>
+    </main>
+    <script src="script.js"></script>
+  </body>
+</html>

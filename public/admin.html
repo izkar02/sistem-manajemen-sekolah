@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <title>Admin Dashboard - Sistem Manajemen Sekolah</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./css/admin.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <h2 class="logo">SMS Admin</h2>
+        <nav>
+          <button data-page="dashboard">Dashboard</button>
+          <button data-page="guru">Data Guru</button>
+          <button data-page="siswa">Data Siswa</button>
+          <button data-page="kelas">Data Kelas</button>
+          <button data-page="penjadwalan">Penjadwalan</button>
+          <button id="goSchedule" style="display: none">
+            Kelola Jadwal (public)
+          </button>
+        </nav>
+      </aside>
+
+      <!-- MAIN -->
+      <div class="main">
+        <header class="topbar">
+          <button id="menuToggle" class="menu-toggle">☰</button>
+          <span id="info">Memuat...</span>
+          <button id="logoutBtn" class="logout">Logout</button>
+        </header>
+
+        <main id="content">
+          <!-- DASHBOARD -->
+          <section id="page-dashboard" class="page active">
+            <h1>Dashboard Admin</h1>
+            <div class="cards">
+              <div class="card">
+                <h3>Guru</h3>
+                <p id="count-guru">0</p>
+              </div>
+              <div class="card">
+                <h3>Siswa</h3>
+                <p id="count-siswa">0</p>
+              </div>
+              <div class="card">
+                <h3>Kelas</h3>
+                <p id="count-kelas">0</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- GURU -->
+          <section id="page-guru" class="page">
+            <h1>Data Guru</h1>
+
+            <form id="guruForm" class="form-grid">
+              <input name="nama" placeholder="Nama Guru" required />
+              <input name="nip" placeholder="NIP" required />
+              <select name="jk">
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
+              </select>
+              <select name="agama" required>
+                <option value="" disabled selected>-- Pilih Agama --</option>
+                <option value="ISLAM">Islam</option>
+                <option value="KRISTEN">Kristen</option>
+                <option value="KATOLIK">Katolik</option>
+                <option value="HINDU">Hindu</option>
+                <option value="BUDDHA">Buddha</option>
+                <option value="KONGHUCU">Konghucu</option>
+              </select>
+              <input name="hp" placeholder="No HP" />
+              <input name="email" placeholder="Email" />
+              <input name="username" placeholder="Username Login" />
+              <input name="password" placeholder="Password Awal" />
+              <select name="teacher_type">
+                <option value="kelas">Guru Kelas</option>
+                <option value="mapel">Guru Mata Pelajaran</option>
+              </select>
+              <input name="keterangan" placeholder="Keterangan" />
+              <button type="submit">Simpan</button>
+            </form>
+
+            <table id="guruTable">
+              <thead>
+                <tr>
+                  <th>Nama</th>
+                  <th>NIP</th>
+                  <th>JK</th>
+                  <th>Agama</th>
+                  <th>No HP</th>
+                  <th>Email</th>
+                  <th>Keterangan</th>
+                  <th>Mapel Diampu</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+
+            <!-- modal sederhana untuk kelola mapel yang diampu seorang guru -->
+            <div
+              id="mapelModalOverlay"
+              style="
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.45);
+                z-index: 2000;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              <div
+                style="
+                  background: #fff;
+                  border-radius: 8px;
+                  padding: 20px;
+                  width: 100%;
+                  max-width: 420px;
+                  max-height: 80vh;
+                  overflow-y: auto;
+                "
+              >
+                <h3 id="mapelModalTitle" style="margin-top: 0">
+                  Kelola Mapel Diampu
+                </h3>
+                <div
+                  id="mapelModalList"
+                  style="display: grid; gap: 6px; margin: 12px 0"
+                ></div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end">
+                  <button type="button" id="mapelModalCancel" class="ghost">
+                    Batal
+                  </button>
+                  <button type="button" id="mapelModalSave">Simpan</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- SISWA -->
+          <section id="page-siswa" class="page">
+            <h1>Data Siswa</h1>
+
+            <form id="siswaForm" class="form-grid">
+              <input name="nis" placeholder="NIS / NISN" required />
+              <input name="nama" placeholder="Nama Siswa" required />
+              <select name="jk">
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
+              </select>
+              <select name="agama" required>
+                <option value="" disabled selected>-- Pilih Agama --</option>
+                <option value="ISLAM">Islam</option>
+                <option value="KRISTEN">Kristen</option>
+                <option value="KATOLIK">Katolik</option>
+                <option value="HINDU">Hindu</option>
+                <option value="BUDDHA">Buddha</option>
+                <option value="KONGHUCU">Konghucu</option>
+              </select>
+              <!-- GANTI: kelas text -> select yang diisi dinamis -->
+              <select id="siswaKelas" name="kelas_id" required>
+                <option value="" disabled selected>-- Pilih Kelas --</option>
+              </select>
+              <input name="hpOrtu" placeholder="No HP Orang Tua" />
+              <button type="submit">Simpan</button>
+            </form>
+
+            <!-- ADD: tombol download CSV di atas table siswa (letakkan setelah form siswa, sebelum table) -->
+            <div
+              class="table-controls"
+              style="
+                display: flex;
+                justify-content: flex-start;
+                align-items: center;
+                gap: 8px;
+                margin: 8px 0;
+              "
+            >
+              <!-- opsional: cari cepat di kanan (tidak mengganggu) -->
+              <div style="display: flex; gap: 8px; align-items: center">
+                <input
+                  id="siswaQuickFilter"
+                  placeholder="Cari siswa..."
+                  style="
+                    padding: 6px 8px;
+                    border-radius: 8px;
+                    border: 1px solid #e6e9ef;
+                  "
+                />
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <button id="downloadSiswaCsv" class="ghost">
+                  Download Daftar Akun Siswa (CSV)
+                </button>
+                <span
+                  id="downloadStatus"
+                  style="
+                    color: var(--muted);
+                    font-size: 13px;
+                    margin-left: 6px;
+                    display: none;
+                  "
+                ></span>
+              </div>
+            </div>
+
+            <table id="siswaTable">
+              <thead>
+                <tr>
+                  <th>NIS</th>
+                  <th>Nama</th>
+                  <th>JK</th>
+                  <th>Agama</th>
+                  <th>Kelas</th>
+                  <th>No HP Ortu</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </section>
+
+          <!-- KELAS -->
+          <section id="page-kelas" class="page">
+            <h1>Data Kelas</h1>
+
+            <form id="kelasForm" class="form-grid">
+              <input
+                name="tingkat"
+                placeholder="Tingkat (angka, contoh: 1)"
+                required
+              />
+              <input
+                name="section"
+                placeholder="Section (contoh: A)"
+                required
+              />
+              <select id="kelasWali" name="wali_id">
+                <option value="">-- Pilih Guru --</option>
+              </select>
+              <button type="submit">Simpan</button>
+            </form>
+
+            <!-- existing kelas list -->
+            <table id="kelasTable" style="margin-top: 1rem">
+              <thead>
+                <tr>
+                  <th>Kelas</th>
+                  <th>Wali Kelas</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+
+            <!-- FILTER / VIEW SISWA PER KELAS -->
+            <div class="kelas-siswa-panel" style="margin: 1rem 0">
+              <label for="kelasFilter">Pilih Kelas:</label>
+              <select
+                id="kelasFilter"
+                style="min-width: 160px; margin-right: 8px"
+              >
+                <option value="">-- Pilih Kelas --</option>
+              </select>
+              <button id="lihatSiswaBtn" type="button">Lihat</button>
+            </div>
+
+            <!-- Tabel daftar siswa per kelas (kosong saat belum pilih) -->
+            <table id="kelasSiswaTable">
+              <thead>
+                <tr>
+                  <th>NIS</th>
+                  <th>Nama</th>
+                  <th>JK</th>
+                  <th>Agama</th>
+                  <th>Kelas</th>
+                  <th>No HP Ortu</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- saat belum pilih kelas: tampilkan 1 tr kosong -->
+                <tr class="empty-row">
+                  <td colspan="6" style="text-align: center; color: #666">
+                    Belum memilih kelas
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- PENJADWALAN (baris baru di bawah KELAS) -->
+          <section id="page-penjadwalan" class="page">
+            <div class="sched-root container">
+              <div class="card">
+                <div>
+                  <strong>Buat Jadwal Otomatis</strong>
+                  <div class="hint">
+                    Isi data yang diperlukan untuk penjadwalan otomatis
+                    menggunakan algoritma genetika.
+                  </div>
+                </div>
+
+                <form id="sched_scheduleForm">
+                  <div class="grid-2">
+                    <div>
+                      <label>Nama Jadwal</label>
+                      <input
+                        type="text"
+                        id="sched_name"
+                        placeholder="Nama Jadwal (unik)"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label>Tahun Ajar / Semester</label>
+                      <input
+                        type="text"
+                        id="sched_academic"
+                        placeholder="Contoh: 2025/2026 - Semester 1"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="row">
+                    <div class="col small">
+                      <label>Hari per Minggu</label>
+                      <input
+                        type="number"
+                        id="sched_daysPerWeek"
+                        value="5"
+                        min="1"
+                        max="7"
+                      />
+                    </div>
+                    <div class="col small">
+                      <label>Jam Pelajaran per Hari (sesi)</label>
+                      <input
+                        type="number"
+                        id="sched_periodsPerDay"
+                        value="8"
+                        min="1"
+                      />
+                    </div>
+                    <div class="col small">
+                      <label>Durasi per Sesi (menit)</label>
+                      <input
+                        type="number"
+                        id="sched_periodDuration"
+                        value="35"
+                        min="10"
+                      />
+                    </div>
+                  </div>
+
+                  <hr />
+
+                  <!-- daftar kelas (otomatis dari DB) -->
+                  <div>
+                    <label>Daftar Kelas (diambil dari DB)</label>
+                    <div class="hint">
+                      Pilih kelas yang ingin dimasukkan ke jadwal
+                    </div>
+                    <div
+                      class="sched-toolbar"
+                      style="display: flex; gap: 8px; margin: 6px 0"
+                    >
+                      <button
+                        type="button"
+                        class="ghost"
+                        id="sched_selectAllKelas"
+                      >
+                        Pilih Semua
+                      </button>
+                      <button type="button" class="ghost" id="sched_resetKelas">
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost"
+                        id="sched_toggleKelas"
+                      >
+                        Sembunyikan
+                      </button>
+                    </div>
+                    <div id="sched_classesList" class="list-area-kelas"></div>
+                  </div>
+
+                  <!-- mata pelajaran (dari database) + konfigurasi jadwal (menyatu) -->
+                  <div>
+                    <label>Mata Pelajaran &amp; Konfigurasi Jadwal</label>
+                    <div class="hint">
+                      Daftar mata pelajaran diambil otomatis dari database
+                      dengan nilai default: 3x sesi/minggu, berlaku untuk semua
+                      kelas. Klik "Edit" untuk mengubah sesi/minggu atau kelas
+                      target, atau "x" untuk tidak menyertakan mapel ini pada
+                      jadwal ini.
+                    </div>
+                    <div id="sched_subjectsList" class="list-area"></div>
+                  </div>
+
+                  <!-- daftar guru (otomatis dari database + relasi teacher_subjects) -->
+                  <div>
+                    <label>Daftar Guru &amp; Mata Pelajaran yang Diampu</label>
+                    <div class="hint">
+                      Daftar guru, peran (guru kelas/mapel), dan mata pelajaran
+                      yang diampu diambil otomatis dari database. Klik "Edit"
+                      hanya untuk mengubah maksimal sesi/minggu guru tersebut
+                      jika diperlukan.
+                    </div>
+                    <div id="sched_teachersList" class="list-area"></div>
+                  </div>
+
+                  <!-- preferensi guru: guru bisa punya beberapa slot hari+periode,
+                       dibedakan tipe (tidak tersedia vs kurang disukai) + prioritas -->
+                  <div>
+                    <label>Preferensi Guru (opsional)</label>
+                    <div class="hint">
+                      "Tidak Tersedia" berarti guru benar-benar tidak bisa
+                      mengajar di slot itu (akan sangat dihindari algoritma).
+                      "Kurang Disukai" hanya preferensi ringan (dihindari kalau
+                      memungkinkan). Satu guru boleh punya beberapa slot hari
+                      &amp; periode berbeda.
+                    </div>
+                    <div id="sched_preferencesList" class="list-area"></div>
+
+                    <div
+                      style="
+                        margin-top: 10px;
+                        display: flex;
+                        gap: 8px;
+                        flex-wrap: wrap;
+                        align-items: center;
+                      "
+                    >
+                      <select
+                        id="sched_prefTeacherSelect"
+                        style="min-width: 160px"
+                      >
+                        <option value="">Pilih guru...</option>
+                      </select>
+                      <select id="sched_prefType" style="min-width: 190px">
+                        <option value="tidak_tersedia">
+                          Tidak Tersedia (wajib dihindari)
+                        </option>
+                        <option value="kurang_disukai">
+                          Kurang Disukai (opsional)
+                        </option>
+                      </select>
+                      <select id="sched_prefPriority" style="min-width: 150px">
+                        <option value="2">Prioritas Rendah</option>
+                        <option value="5" selected>Prioritas Sedang</option>
+                        <option value="8">Prioritas Tinggi</option>
+                      </select>
+                    </div>
+
+                    <div
+                      style="
+                        margin-top: 8px;
+                        display: flex;
+                        gap: 8px;
+                        flex-wrap: wrap;
+                        align-items: center;
+                      "
+                    >
+                      <select id="sched_prefDaySelect" style="min-width: 130px">
+                        <option value="0">Senin</option>
+                        <option value="1">Selasa</option>
+                        <option value="2">Rabu</option>
+                        <option value="3">Kamis</option>
+                        <option value="4">Jumat</option>
+                        <option value="5">Sabtu</option>
+                      </select>
+                      <div
+                        id="sched_prefPeriodsCheckboxes"
+                        style="display: flex; gap: 6px; flex-wrap: wrap"
+                      ></div>
+                      <button
+                        type="button"
+                        class="ghost"
+                        id="sched_addPrefSlotBtn"
+                      >
+                        + Tambah Slot Hari Ini
+                      </button>
+                    </div>
+
+                    <div class="hint" style="margin-top: 6px">
+                      Slot yang sudah ditambahkan untuk guru ini (belum
+                      disimpan):
+                    </div>
+                    <div
+                      id="sched_prefSlotsPreview"
+                      class="list-area"
+                      style="margin-top: 4px"
+                    ></div>
+
+                    <div style="margin-top: 8px">
+                      <button
+                        type="button"
+                        class="ghost"
+                        id="sched_savePrefBtn"
+                      >
+                        Simpan Preferensi Guru
+                      </button>
+                    </div>
+                  </div>
+
+                  <footer style="margin-top: 12px">
+                    <button type="submit" class="primary">
+                      Simpan & Generate
+                    </button>
+                    <button id="sched_saveDraft" type="button" class="ghost">
+                      Simpan Sebagai Draft
+                    </button>
+                  </footer>
+                </form>
+
+                <!-- hasil / daftar jadwal lokal -->
+                <div style="margin-top: 14px">
+                  <strong>Jadwal Tersimpan (lokal)</strong>
+                  <div id="sched_schedulesWrap" style="margin-top: 10px"></div>
+
+                  <!-- DETAIL VIEW untuk jadwal (akan dipakai saat klik Lihat) -->
+                  <div
+                    id="sched_scheduleDetail"
+                    class="card-table"
+                    style="margin-top: 12px"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="module" src="./js/admin.main.js"></script>
+  </body>
+</html>

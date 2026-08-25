@@ -1,0 +1,59 @@
+/* public/css/auth.css - sederhana */
+:root {
+  --accent: #0b5ed7;
+  --bg: #f6f8fb;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: Inter, system-ui, Arial;
+  margin: 0;
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-wrap {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+}
+.login-box {
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(10, 20, 40, 0.08);
+}
+.login-box h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+.login-box label {
+  display: block;
+  margin-bottom: 10px;
+  color: #333;
+  font-size: 14px;
+}
+.login-box input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e6e9ef;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+.login-box button {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  font-weight: 600;
+  margin-top: 12px;
+}
+.msg {
+  color: #d63333;
+  margin-top: 8px;
+}

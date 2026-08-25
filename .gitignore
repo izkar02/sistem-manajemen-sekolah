@@ -1,0 +1,23 @@
+node_modules/
+dist/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Local database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Testing / benchmark output
+exports/
+ga-benchmark-output/
+
+# OS
+.DS_Store
+Thumbs.db

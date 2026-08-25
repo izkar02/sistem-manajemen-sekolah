@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <title>Halaman Guru - Sistem Manajemen Sekolah</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./css/guru.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <h2 class="logo">SMS Guru</h2>
+        <nav>
+          <button data-page="dashboard">Dashboard</button>
+          <button data-page="jadwal">Jadwal</button>
+          <button data-page="guru">Lihat Daftar Guru</button>
+          <button data-page="siswa">Data Siswa</button>
+          <button data-page="absensi">Absensi</button>
+          <button data-page="rekap">Rekap Absensi</button>
+          <button data-page="password">Ganti Password</button>
+        </nav>
+      </aside>
+
+      <!-- MAIN -->
+      <div class="main">
+        <header class="topbar">
+          <button id="menuToggle" class="menu-toggle">☰</button>
+          <span id="info">Memuat...</span>
+          <button id="logoutBtn" class="logout">Logout</button>
+        </header>
+
+        <main id="content">
+          <!-- ==================== DASHBOARD ==================== -->
+          <section id="page-dashboard" class="page active">
+            <h1>Dashboard</h1>
+
+            <div id="guru_profilWrap">
+              <div class="empty">Memuat profil...</div>
+            </div>
+
+            <p class="section-title">Absensi Hari Ini</p>
+            <div class="stat-grid" id="statToday">
+              <div class="stat-card">
+                <div class="stat-val" id="st-sessions">-</div>
+                <div class="stat-label">Sesi</div>
+              </div>
+              <div class="stat-card hadir">
+                <div class="stat-val" id="st-hadir">-</div>
+                <div class="stat-label">Hadir</div>
+              </div>
+              <div class="stat-card izin">
+                <div class="stat-val" id="st-izin">-</div>
+                <div class="stat-label">Izin</div>
+              </div>
+              <div class="stat-card sakit">
+                <div class="stat-val" id="st-sakit">-</div>
+                <div class="stat-label">Sakit</div>
+              </div>
+              <div class="stat-card alpha">
+                <div class="stat-val" id="st-alpha">-</div>
+                <div class="stat-label">Alpha</div>
+              </div>
+            </div>
+
+            <p class="section-title">Ringkasan Semester Berjalan</p>
+            <div class="stat-grid" id="statSemester">
+              <div class="stat-card">
+                <div class="stat-val" id="ss-sessions">-</div>
+                <div class="stat-label">Total Sesi</div>
+              </div>
+              <div class="stat-card hadir">
+                <div class="stat-val" id="ss-hadir">-</div>
+                <div class="stat-label">Hadir</div>
+              </div>
+              <div class="stat-card izin">
+                <div class="stat-val" id="ss-izin">-</div>
+                <div class="stat-label">Izin</div>
+              </div>
+              <div class="stat-card sakit">
+                <div class="stat-val" id="ss-sakit">-</div>
+                <div class="stat-label">Sakit</div>
+              </div>
+              <div class="stat-card alpha">
+                <div class="stat-val" id="ss-alpha">-</div>
+                <div class="stat-label">Alpha</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ==================== JADWAL ==================== -->
+          <section id="page-jadwal" class="page">
+            <h1>Jadwal Saya</h1>
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Jadwal</strong>
+                  <div class="hint">Jadwal yang tersimpan di sistem</div>
+                </div>
+              </div>
+              <div id="guru_jadwalWrap" style="margin-top: 12px"></div>
+              <div
+                id="guru_jadwalDetail"
+                class="card-table"
+                style="margin-top: 12px"
+              ></div>
+            </div>
+          </section>
+
+          <!-- ==================== GURU ==================== -->
+          <section id="page-guru" class="page">
+            <h1>Daftar Guru</h1>
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Guru Sekolah</strong>
+                  <div class="hint">
+                    Cari nama / NIP / email — hasil muncul langsung saat
+                    mengetik
+                  </div>
+                </div>
+              </div>
+              <div
+                style="
+                  margin: 8px 0;
+                  display: flex;
+                  gap: 8px;
+                  align-items: center;
+                "
+              >
+                <input
+                  id="guruFilterInput"
+                  type="text"
+                  placeholder="Cari guru (nama, NIP, email)..."
+                  style="
+                    flex: 1;
+                    padding: 8px;
+                    border-radius: 6px;
+                    border: 1px solid #e6e9ef;
+                  "
+                />
+                <button id="refreshGuruBtn" class="ghost">Refresh</button>
+              </div>
+              <table id="guruTable">
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>NIP</th>
+                    <th>JK</th>
+                    <th>Agama</th>
+                    <th>Email</th>
+                    <th>No HP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colspan="6" style="text-align: center; color: #666">
+                      Memuat...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ==================== SISWA ==================== -->
+          <section id="page-siswa" class="page">
+            <h1>Data Siswa</h1>
+            <div
+              class="table-controls"
+              style="
+                display: flex;
+                justify-content: flex-start;
+                align-items: center;
+                gap: 8px;
+                margin: 8px 0;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  gap: 8px;
+                  align-items: center;
+                  flex-wrap: wrap;
+                "
+              >
+                <input
+                  id="siswaQuickFilter"
+                  placeholder="Cari siswa..."
+                  style="
+                    padding: 6px 8px;
+                    border-radius: 8px;
+                    border: 1px solid #e6e9ef;
+                    min-width: 220px;
+                  "
+                />
+                <select
+                  id="kelasFilter"
+                  style="
+                    padding: 6px 8px;
+                    border-radius: 8px;
+                    border: 1px solid #e6e9ef;
+                  "
+                >
+                  <option value="">Semua Kelas</option>
+                </select>
+                <button id="resetFilterBtn" class="ghost">Reset</button>
+              </div>
+            </div>
+            <table id="siswaTable">
+              <thead>
+                <tr>
+                  <th>NIS</th>
+                  <th>Nama</th>
+                  <th>JK</th>
+                  <th>Agama</th>
+                  <th>Kelas</th>
+                  <th>No HP Ortu</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </section>
+
+          <!-- ==================== ABSENSI ==================== -->
+          <section id="page-absensi" class="page">
+            <h1>Absensi</h1>
+
+            <!-- FORM BUAT SESI -->
+            <div class="card" id="absensiFormCard">
+              <strong>Buat Sesi Absensi</strong>
+              <div class="hint" style="margin-bottom: 12px">
+                Isi form di bawah untuk memulai absensi
+              </div>
+
+              <div class="form-row" id="absensiFormRow">
+                <!-- guru kelas: pilih mapel | guru mapel: pilih kelas -->
+                <div class="form-group" id="fgKelasOrMapel">
+                  <label id="lblKelasOrMapel">Memuat...</label>
+                  <select id="selKelasOrMapel"></select>
+                </div>
+
+                <div class="form-group">
+                  <label>Tanggal</label>
+                  <input type="date" id="absensiTanggal" />
+                </div>
+
+                <div class="form-group" style="flex: 2; min-width: 200px">
+                  <label>Materi (opsional)</label>
+                  <input
+                    type="text"
+                    id="absensiMateri"
+                    placeholder="Topik / materi hari ini..."
+                  />
+                </div>
+
+                <div class="form-group" style="flex: 0">
+                  <label>&nbsp;</label>
+                  <button class="btn-primary" id="btnMulaiAbsensi">
+                    Mulai Absensi
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- PANEL ABSENSI SISWA (muncul setelah sesi dibuat) -->
+            <div
+              class="card absensi-wrap"
+              id="absensiPanel"
+              style="display: none; margin-top: 12px"
+            >
+              <div class="absensi-info" id="absensiInfo">
+                <strong id="absensiInfoTitle">—</strong>
+                <span id="absensiInfoMeta">—</span>
+              </div>
+
+              <!-- Quick actions -->
+              <div
+                style="
+                  display: flex;
+                  gap: 6px;
+                  margin-bottom: 10px;
+                  flex-wrap: wrap;
+                  align-items: center;
+                "
+              >
+                <span style="font-size: 12px; color: #6b7280"
+                  >Tandai semua:</span
+                >
+                <button class="status-btn" onclick="setAllStatus('hadir')">
+                  ✓ Semua Hadir
+                </button>
+                <button class="status-btn" onclick="setAllStatus('alpha')">
+                  ✗ Semua Alpha
+                </button>
+              </div>
+
+              <div class="absensi-counter" id="absensiCounter"></div>
+
+              <table id="absensiTable" style="margin-top: 8px">
+                <thead>
+                  <tr>
+                    <th style="width: 36px">No</th>
+                    <th>NIS</th>
+                    <th>Nama Siswa</th>
+                    <th>Status</th>
+                    <th>Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody id="absensiTableBody"></tbody>
+              </table>
+
+              <div class="absensi-actions">
+                <button class="btn-success" id="btnSimpanAbsensi">
+                  Simpan Absensi
+                </button>
+                <button class="btn-danger" id="btnBatalAbsensi">
+                  Batalkan Sesi
+                </button>
+              </div>
+            </div>
+
+            <!-- HISTORI SESI -->
+            <div class="card" style="margin-top: 12px">
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 10px;
+                "
+              >
+                <div>
+                  <strong>Histori Sesi Absensi</strong>
+                  <div class="hint">Semester aktif — terbaru di atas</div>
+                </div>
+                <button class="ghost" id="btnRefreshHistory">Refresh</button>
+              </div>
+              <div id="historyList">
+                <div class="empty-state">Memuat histori...</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ==================== REKAP ==================== -->
+          <section id="page-rekap" class="page">
+            <h1>Rekap Absensi</h1>
+
+            <div class="card" style="margin-bottom: 12px">
+              <strong>Filter Rekap</strong>
+              <div class="rekap-filter" style="margin-top: 10px">
+                <div class="form-group">
+                  <label>Kelas</label>
+                  <select id="rekapKelasSelect">
+                    <option value="">— Pilih Kelas —</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Semester</label>
+                  <select id="rekapSemesterSelect">
+                    <option value="">— Pilih Semester —</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 0">
+                  <label>&nbsp;</label>
+                  <button class="btn-primary" id="btnTampilkanRekap">
+                    Tampilkan
+                  </button>
+                </div>
+                <div class="form-group" style="flex: 0">
+                  <label>&nbsp;</label>
+                  <button class="ghost" id="btnExportXlsx" disabled>
+                    Export Excel
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" id="rekapResult" style="display: none">
+              <div id="rekapHeader" style="margin-bottom: 10px"></div>
+              <div style="overflow-x: auto">
+                <table id="rekapTable">
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>NIS</th>
+                      <th>Nama Siswa</th>
+                      <th style="color: #16a34a">Hadir</th>
+                      <th style="color: #2563eb">Izin</th>
+                      <th style="color: #d97706">Sakit</th>
+                      <th style="color: #dc2626">Alpha</th>
+                      <th>% Hadir</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rekapTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- GANTI PASSWORD -->
+          <section id="page-password" class="page">
+            <h1>Ganti Password</h1>
+
+            <div class="card" style="max-width: 420px">
+              <div class="card-1">
+                <div>
+                  <strong>Ubah Password Akun</strong>
+                  <div class="hint">
+                    Masukkan password lama, lalu password baru Anda
+                  </div>
+                </div>
+              </div>
+
+              <form id="gantiPasswordForm" style="display: grid; gap: 12px">
+                <div>
+                  <label
+                    for="oldPassword"
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      display: block;
+                      margin-bottom: 4px;
+                    "
+                    >Password Lama</label
+                  >
+                  <input
+                    id="oldPassword"
+                    name="oldPassword"
+                    type="password"
+                    required
+                    style="
+                      width: 100%;
+                      padding: 8px;
+                      border-radius: 6px;
+                      border: 1px solid #e6e9ef;
+                    "
+                  />
+                </div>
+                <div>
+                  <label
+                    for="newPassword"
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      display: block;
+                      margin-bottom: 4px;
+                    "
+                    >Password Baru</label
+                  >
+                  <input
+                    id="newPassword"
+                    name="newPassword"
+                    type="password"
+                    minlength="6"
+                    required
+                    style="
+                      width: 100%;
+                      padding: 8px;
+                      border-radius: 6px;
+                      border: 1px solid #e6e9ef;
+                    "
+                  />
+                </div>
+                <div>
+                  <label
+                    for="confirmPassword"
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      display: block;
+                      margin-bottom: 4px;
+                    "
+                    >Konfirmasi Password Baru</label
+                  >
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    minlength="6"
+                    required
+                    style="
+                      width: 100%;
+                      padding: 8px;
+                      border-radius: 6px;
+                      border: 1px solid #e6e9ef;
+                    "
+                  />
+                </div>
+
+                <div
+                  id="gantiPasswordMsg"
+                  class="hint"
+                  style="min-height: 18px"
+                ></div>
+
+                <button
+                  type="submit"
+                  style="
+                    background: #2563eb;
+                    color: #fff;
+                    border: none;
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                  "
+                >
+                  Simpan Password Baru
+                </button>
+              </form>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <!-- MODAL DETAIL SESI -->
+    <div class="modal-overlay" id="modalDetail">
+      <div class="modal-box">
+        <button class="modal-close" id="modalClose">✕</button>
+        <div class="modal-title" id="modalTitle">Detail Absensi</div>
+        <div id="modalBody"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="module" src="./js/guru.main.js"></script>
+  </body>
+</html>

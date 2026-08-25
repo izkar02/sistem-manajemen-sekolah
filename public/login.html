@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Login - Sistem Manajemen Sekolah</title>
+    <link rel="stylesheet" href="./css/auth.css" />
+  </head>
+  <body>
+    <main class="login-wrap">
+      <form id="loginForm" class="login-box">
+        <h2>Login</h2>
+        <label>
+          Username
+          <input name="username" required />
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" required />
+        </label>
+        <button type="submit">Login</button>
+        <p id="msg" class="msg"></p>
+      </form>
+    </main>
+
+    <script type="module" src="./js/auth.js"></script>
+  </body>
+</html>

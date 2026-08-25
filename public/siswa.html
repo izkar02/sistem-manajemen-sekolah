@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <title>Halaman Siswa - Sistem Manajemen Sekolah</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./css/siswa.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <h2 class="logo">SMS Siswa</h2>
+        <nav>
+          <button data-page="profil">Dashboard</button>
+          <button data-page="jadwal">Jadwal</button>
+          <button data-page="guru">Daftar Guru</button>
+          <button data-page="absensi">Riwayat Absensi</button>
+          <button data-page="password">Ganti Password</button>
+        </nav>
+      </aside>
+
+      <!-- MAIN -->
+      <div class="main">
+        <header class="topbar">
+          <button id="menuToggle" class="menu-toggle">☰</button>
+          <span id="info">Memuat...</span>
+          <button id="logoutBtn" class="logout">Logout</button>
+        </header>
+
+        <main id="content">
+          <!-- DASHBOARD / PROFIL SAYA -->
+          <section id="page-profil" class="page active">
+            <h1>Dashboard Saya</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Profil Siswa</strong>
+                  <div class="hint">Data akun siswa yang sedang login</div>
+                </div>
+              </div>
+
+              <div id="siswa_profilWrap">
+                <div class="empty">Memuat profil...</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- RIWAYAT ABSENSI -->
+          <section id="page-absensi" class="page">
+            <h1>Riwayat Absensi Saya</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Riwayat Kehadiran</strong>
+                  <div class="hint">
+                    Seluruh catatan absensi milik Anda, diurutkan dari yang
+                    terbaru
+                  </div>
+                </div>
+              </div>
+
+              <div id="siswa_absensiWrap">
+                <div class="empty">Memuat riwayat absensi...</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- JADWAL -->
+          <section id="page-jadwal" class="page">
+            <h1>Jadwal Saya</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Jadwal</strong>
+                  <div class="hint">Jadwal yang tersimpan di sistem</div>
+                </div>
+              </div>
+
+              <div id="siswa_jadwalWrap" style="margin-top: 12px"></div>
+
+              <div
+                id="siswa_jadwalDetail"
+                class="card-table"
+                style="margin-top: 12px"
+              ></div>
+            </div>
+          </section>
+
+          <!-- GURU -->
+          <section id="page-guru" class="page">
+            <h1>Daftar Guru</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Guru Sekolah</strong>
+                  <div class="hint">
+                    Cari nama / NIP / email — hasil muncul langsung saat
+                    mengetik
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style="
+                  margin: 8px 0;
+                  display: flex;
+                  gap: 8px;
+                  align-items: center;
+                "
+              >
+                <input
+                  id="guruFilterInput"
+                  type="text"
+                  placeholder="Cari guru (nama, NIP, email)..."
+                  style="
+                    flex: 1;
+                    padding: 8px;
+                    border-radius: 6px;
+                    border: 1px solid #e6e9ef;
+                  "
+                />
+                <button id="refreshGuruBtn" class="ghost">Refresh</button>
+              </div>
+
+              <table id="siswaGuruTable">
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>NIP</th>
+                    <th>JK</th>
+                    <th>Agama</th>
+                    <th>Email</th>
+                    <th>No HP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colspan="6" style="text-align: center; color: #666">
+                      Memuat...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <!-- GANTI PASSWORD -->
+          <section id="page-password" class="page">
+            <h1>Ganti Password</h1>
+
+            <div class="card" style="max-width: 420px">
+              <div class="card-1">
+                <div>
+                  <strong>Ubah Password Akun</strong>
+                  <div class="hint">
+                    Masukkan password lama, lalu password baru Anda
+                  </div>
+                </div>
+              </div>
+
+              <form id="gantiPasswordForm" style="display: grid; gap: 12px">
+                <div>
+                  <label
+                    for="oldPassword"
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      display: block;
+                      margin-bottom: 4px;
+                    "
+                    >Password Lama</label
+                  >
+                  <input
+                    id="oldPassword"
+                    name="oldPassword"
+                    type="password"
+                    required
+                    style="
+                      width: 100%;
+                      padding: 8px;
+                      border-radius: 6px;
+                      border: 1px solid #e6e9ef;
+                    "
+                  />
+                </div>
+                <div>
+                  <label
+                    for="newPassword"
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      display: block;
+                      margin-bottom: 4px;
+                    "
+                    >Password Baru</label
+                  >
+                  <input
+                    id="newPassword"
+                    name="newPassword"
+                    type="password"
+                    minlength="6"
+                    required
+                    style="
+                      width: 100%;
+                      padding: 8px;
+                      border-radius: 6px;
+                      border: 1px solid #e6e9ef;
+                    "
+                  />
+                </div>
+                <div>
+                  <label
+                    for="confirmPassword"
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      display: block;
+                      margin-bottom: 4px;
+                    "
+                    >Konfirmasi Password Baru</label
+                  >
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    minlength="6"
+                    required
+                    style="
+                      width: 100%;
+                      padding: 8px;
+                      border-radius: 6px;
+                      border: 1px solid #e6e9ef;
+                    "
+                  />
+                </div>
+
+                <div
+                  id="gantiPasswordMsg"
+                  class="hint"
+                  style="min-height: 18px"
+                ></div>
+
+                <button
+                  type="submit"
+                  style="
+                    background: #2563eb;
+                    color: #fff;
+                    border: none;
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                  "
+                >
+                  Simpan Password Baru
+                </button>
+              </form>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="module" src="./js/siswa.main.js"></script>
+  </body>
+</html>

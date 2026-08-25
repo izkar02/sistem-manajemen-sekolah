@@ -1,0 +1,428 @@
+/* =========================================================
+   admin.css - full (ADMIN styles + scoped scheduler styles)
+   Replace your public/css/admin.css with this file.
+========================================================= */
+
+* {
+  box-sizing: border-box;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f4f6f8;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 240px;
+  background: #1e293b;
+  color: #fff;
+  padding: 1rem;
+}
+
+.sidebar .logo {
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+.sidebar nav button {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #fff;
+  padding: 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar nav button:hover {
+  background: #334155;
+}
+
+/* MAIN */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* TOPBAR */
+.topbar {
+  background: #fff;
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #ddd;
+}
+
+.menu-toggle {
+  display: none;
+  font-size: 1.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.logout {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+/* CONTENT */
+main {
+  padding: 1rem;
+}
+
+.page {
+  display: none;
+}
+
+.page.active {
+  display: block;
+}
+
+/* DASHBOARD */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  background: #fff;
+  padding: 1.5rem;
+  text-align: center;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* FORM */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid button {
+  padding: 0.5rem;
+}
+
+.form-grid button {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+/* TABLE */
+table {
+  width: 100%;
+  background: #fff;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+th {
+  background: #f1f5f9;
+}
+
+/* RESPONSIVE - admin layout */
+@media (max-width: 768px) {
+  .menu-toggle {
+    display: block;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 240px;
+    background: #1f2937;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+  }
+
+  .sidebar.active {
+    transform: translateX(0);
+  }
+
+  .main {
+    margin-left: 0;
+  }
+
+  /* overlay */
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 999;
+  }
+}
+
+/* =========================================================
+   Scoped scheduler styles
+   (this block is a nearly verbatim port of styles.css
+    but prefixed to affect only #page-penjadwalan .sched-root)
+   Result: page-penjadwalan will look like index.html main container
+========================================================= */
+
+/* root variables & container for scheduler block */
+#page-penjadwalan .sched-root {
+  --accent: #2563eb;
+  --muted: #6b7280;
+  --bg: #f8fafc;
+
+  /* font / baseline */
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial;
+  color: #111;
+  background: transparent; /* keep admin background */
+}
+
+/* layout container so look like index.html */
+#page-penjadwalan .sched-root.container {
+  max-width: 980px;
+  min-width: min-content;
+  margin: 28px auto;
+  padding: 0 16px;
+}
+
+/* reuse card styles for scheduler area */
+#page-penjadwalan .sched-root .card {
+  min-width: min-content;
+  background: white;
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: 0 4px 18px rgba(16, 24, 40, 0.06);
+}
+
+/* card-1, card-table, toolbar */
+#page-penjadwalan .sched-root .card-1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+#page-penjadwalan .sched-root .card-table {
+  margin-top: 16px;
+}
+#page-penjadwalan .sched-root section.card-2 {
+  display: none;
+  margin-top: 18px;
+}
+#page-penjadwalan .sched-root .toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#page-penjadwalan .sched-root button.primary {
+  background: var(--accent);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+}
+#page-penjadwalan .sched-root button.ghost {
+  background: transparent;
+  border: 1px solid #e6e9ef;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* empty state */
+#page-penjadwalan .sched-root .empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* lists & schedule table */
+#page-penjadwalan .sched-root .list {
+  display: grid;
+  gap: 10px;
+}
+#page-penjadwalan .sched-root .schedule-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 12px;
+}
+#page-penjadwalan .sched-root .schedule-table th,
+#page-penjadwalan .sched-root .schedule-table td {
+  border: 1px solid #e5e7eb;
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+}
+#page-penjadwalan .sched-root .schedule-table th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+#page-penjadwalan .sched-root .class-title {
+  margin-top: 32px;
+  font-weight: 700;
+  font-size: 16px;
+}
+#page-penjadwalan .sched-root .schedule-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #eef2ff;
+}
+#page-penjadwalan .sched-root .meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+#page-penjadwalan .sched-root .nav {
+  display: flex;
+  gap: 8px;
+}
+
+/* FORM (scoped) */
+#page-penjadwalan .sched-root form {
+  display: grid;
+  gap: 14px;
+}
+#page-penjadwalan .sched-root label {
+  font-weight: 600;
+  font-size: 13px;
+}
+#page-penjadwalan .sched-root input[type="text"],
+#page-penjadwalan .sched-root input[type="number"],
+#page-penjadwalan .sched-root select,
+#page-penjadwalan .sched-root textarea {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e6e9ef;
+  min-width: 140px;
+}
+#page-penjadwalan .sched-root .row {
+  display: flex;
+  gap: 12px;
+}
+#page-penjadwalan .sched-root .col {
+  flex: 1;
+}
+#page-penjadwalan .sched-root .small {
+  max-width: 240px;
+}
+#page-penjadwalan .sched-root .list-area {
+  display: grid;
+  gap: 8px;
+}
+#page-penjadwalan .sched-root .list-area-kelas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 16px;
+}
+
+#page-penjadwalan .sched-root .list-area-kelas > * {
+  flex: 0 1 auto; /* Lebar sesuai isi, bisa mengecil jika perlu */
+  min-width: 0; /* Mencegah overflow */
+}
+#page-penjadwalan .sched-root .fieldset {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#page-penjadwalan .sched-root .field-1 {
+  flex: 1;
+}
+#page-penjadwalan .sched-root .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e6eef7;
+}
+#page-penjadwalan .sched-root .muted {
+  color: var(--muted);
+}
+#page-penjadwalan .sched-root .controls {
+  display: flex;
+  gap: 8px;
+}
+#page-penjadwalan .sched-root .grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+#page-penjadwalan .sched-root footer {
+  margin-top: 16px;
+  text-align: right;
+}
+#page-penjadwalan .sched-root .hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* schedule detail smaller table rules (matching index.html) */
+#page-penjadwalan .sched-root #sched_scheduleDetail .schedule-table {
+  margin-top: 10px;
+  border-collapse: collapse;
+  width: 100%;
+}
+#page-penjadwalan .sched-root #sched_scheduleDetail .schedule-table th,
+#page-penjadwalan .sched-root #sched_scheduleDetail .schedule-table td {
+  border: 1px solid #e5e7eb;
+  padding: 6px;
+  text-align: center;
+  font-size: 13px;
+}
+#page-penjadwalan .sched-root #sched_scheduleDetail .class-title {
+  margin-top: 10px;
+  font-weight: 700;
+}
+
+/* small tweaks to match index spacing */
+#page-penjadwalan .sched-root hr {
+  border: 0;
+  border-top: 1px solid #eef2f7;
+  margin: 12px 0;
+}
+
+/* RESPONSIVE for scheduler block */
+@media (max-width: 640px) {
+  #page-penjadwalan .sched-root .row {
+    flex-direction: column;
+  }
+  #page-penjadwalan .sched-root .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
