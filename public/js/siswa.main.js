@@ -2,6 +2,16 @@
 // Modul sederhana untuk halaman siswa (jadwal + daftar guru)
 import { successAlert, errorAlert, warningAlert } from "./swal-utils.js";
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "-";
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 async function me() {
   const res = await fetch("/api/auth/me", { credentials: "include" });
   if (!res.ok) {
@@ -65,28 +75,27 @@ document.getElementById("logoutBtn").onclick = async () => {
 /* ---------- Jadwal (list + detail) ---------- */
 const jadwalWrap = document.getElementById("siswa_jadwalWrap");
 const jadwalDetail = document.getElementById("siswa_jadwalDetail");
+let JADWAL_CACHE = []; // hasil /api/public/jadwal/mine, dipakai lagi saat "Lihat" diklik
 
+// Hanya memakai endpoint khusus siswa yang memfilter jadwal berdasarkan
+// kelas (kelas_id diambil fresh dari DB di server). Sengaja TIDAK ada lagi
+// fallback ke /api/public/jadwal (daftar semua jadwal, semua kelas) karena
+// itu bisa membocorkan jadwal kelas lain ke siswa.
 async function fetchJadwalList() {
   try {
-    // coba endpoint khusus siswa yang memfilter berdasarkan kelas
-    let res = await fetch("/api/public/jadwal/mine", {
+    const res = await fetch("/api/public/jadwal/mine", {
       credentials: "include",
     });
     if (res.ok) {
       const j = await res.json();
-      return j.data || [];
+      JADWAL_CACHE = j.data || [];
+      return JADWAL_CACHE;
     }
-
-    // fallback ke endpoint publik umum (jika mine tidak tersedia)
-    const res2 = await fetch("/api/public/jadwal", { credentials: "include" });
-    if (res2.ok) {
-      const j2 = await res2.json();
-      return j2.data || [];
-    }
-
+    JADWAL_CACHE = [];
     return [];
   } catch (err) {
     console.error("fetchJadwalList error:", err);
+    JADWAL_CACHE = [];
     return [];
   }
 }
@@ -135,18 +144,17 @@ function renderJadwalList(items) {
   });
 }
 
-async function loadJadwalDetail(id) {
+// Detail diambil dari cache hasil /jadwal/mine (payload sudah dipotong
+// hanya untuk kelas siswa yang login di server), bukan fetch ulang ke
+// endpoint publik /api/public/jadwal/:id yang mengembalikan SEMUA kelas.
+function loadJadwalDetail(id) {
   if (!id) return;
-  let res = await fetch(`/api/public/jadwal/${encodeURIComponent(id)}`, {
-    credentials: "include",
-  });
-  if (!res.ok) {
+  const schedule = JADWAL_CACHE.find((s) => String(s.id) === String(id));
+  if (!schedule) {
     errorAlert("Gagal memuat detail jadwal");
     return;
   }
-  const j = await res.json();
-  const data = j.data;
-  renderJadwalDetail(data);
+  renderJadwalDetail(schedule);
 }
 
 const DAY_LABELS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -190,7 +198,9 @@ function renderJadwalDetail(schedule) {
     (payload.payload && payload.payload.assignments) ||
     [];
 
-  const SCHED_BREAK_SESSION_INDEX = 3;
+  // Sesi-sesi yang otomatis jadi jam istirahat, ditulis pakai nomor sesi
+  // seperti yang tampil di tabel (1-based): "Sesi 3" dan "Sesi 7".
+  const SCHED_BREAK_SESSIONS = [4, 8];
   const SCHED_BREAK_DURATION = 30;
   const DAY_START_MINUTES = 7 * 60;
 
@@ -199,7 +209,7 @@ function renderJadwalDetail(schedule) {
   const endTimes = new Array(periodsPerDay);
   let cur = DAY_START_MINUTES;
   for (let p = 0; p < periodsPerDay; p++) {
-    if (p === SCHED_BREAK_SESSION_INDEX) {
+    if (SCHED_BREAK_SESSIONS.includes(p + 1)) {
       startTimes[p] = cur;
       cur += SCHED_BREAK_DURATION;
       endTimes[p] = cur;
@@ -220,7 +230,7 @@ function renderJadwalDetail(schedule) {
     html += `</tr></thead><tbody>`;
 
     for (let p = 0; p < periodsPerDay; p++) {
-      const isBreak = p === SCHED_BREAK_SESSION_INDEX;
+      const isBreak = SCHED_BREAK_SESSIONS.includes(p + 1);
       const timeLabel = `${formatHM(startTimes[p])} - ${formatHM(endTimes[p])}`;
       html += `<tr><td><strong>Sesi ${p + 1}</strong><br><small>${timeLabel}</small>${isBreak ? "<br><em>Istirahat</em>" : ""}</td>`;
       for (let d = 0; d < daysPerWeek; d++) {
@@ -531,6 +541,260 @@ async function initGuru() {
   renderGuruRows(GURU_CACHE);
 }
 
+/* ---------- Ekstrakurikuler (list + detail, read-only) ---------- */
+// Catatan: siswa TIDAK bisa mendaftar ekskul sendiri dari halaman ini.
+// Hanya menampilkan info + tombol "Lihat Detail". Pendaftaran anggota
+// masih ditangani manual oleh pembina/admin lewat halaman guru/admin.
+const ekskulWrap = document.getElementById("siswa_ekskulWrap");
+const ekskulDetail = document.getElementById("siswa_ekskulDetail");
+const ekskulMineWrap = document.getElementById("siswa_ekskulMineWrap");
+let EKSKUL_CACHE = [];
+
+const EKSKUL_ICON = "🏕️";
+const DAY_LABELS_FULL = [
+  "Minggu",
+  "Senin",
+  "Selasa",
+  "Rabu",
+  "Kamis",
+  "Jumat",
+  "Sabtu",
+];
+
+function formatEkskulDay(day) {
+  if (day === null || day === undefined || day === "") return "-";
+  if (typeof day === "number" || /^[0-6]$/.test(String(day))) {
+    return DAY_LABELS_FULL[Number(day)] || "-";
+  }
+  const s = String(day);
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+function formatEkskulTime(t) {
+  if (!t) return "";
+  // DB biasanya kirim "HH:MM:SS" -> tampilkan "HH:MM" saja
+  return String(t).slice(0, 5);
+}
+
+// inject CSS sekali saja, supaya tidak bergantung pada siswa.css
+// (yang mungkin belum punya style untuk kartu ekskul)
+(function injectEkskulStyle() {
+  if (document.getElementById("ekskul-style")) return;
+  const style = document.createElement("style");
+  style.id = "ekskul-style";
+  style.textContent = `
+    .ekskul-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .ekskul-card {
+      border: 1px solid #e6e9ef;
+      border-radius: 10px;
+      padding: 14px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ekskul-card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .ekskul-card-row {
+      font-size: 13px;
+      color: #444;
+    }
+    .ekskul-card-row strong {
+      color: #111;
+      font-weight: 600;
+    }
+    .ekskul-card .ghost {
+      margin-top: 10px;
+      align-self: flex-start;
+    }
+    .ekskul-detail-card {
+      border: 1px solid #e6e9ef;
+      border-radius: 10px;
+      padding: 16px;
+      background: #fafbfc;
+    }
+    .ekskul-detail-row {
+      display: flex;
+      gap: 8px;
+      font-size: 14px;
+      padding: 4px 0;
+    }
+    .ekskul-detail-label {
+      min-width: 110px;
+      font-weight: 600;
+      color: #333;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+async function fetchEkskulList() {
+  try {
+    const res = await fetch("/api/public/extracurriculars", {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      EKSKUL_CACHE = [];
+      return null;
+    }
+    const j = await res.json();
+    EKSKUL_CACHE = j.data || [];
+    return EKSKUL_CACHE;
+  } catch (err) {
+    console.error("fetchEkskulList error:", err);
+    EKSKUL_CACHE = [];
+    return null;
+  }
+}
+
+function renderEkskulList(items) {
+  if (!ekskulWrap) return;
+  ekskulDetail.innerHTML = "";
+
+  if (items === null) {
+    ekskulWrap.innerHTML = `<div class="empty">Gagal memuat daftar ekstrakurikuler.</div>`;
+    return;
+  }
+  if (!items.length) {
+    ekskulWrap.innerHTML = `<div class="empty">Belum ada ekstrakurikuler yang tersedia.</div>`;
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "ekskul-grid";
+
+  items.forEach((item) => {
+    const day = formatEkskulDay(item.day_of_week);
+    const time =
+      formatEkskulTime(item.start_time) && formatEkskulTime(item.end_time)
+        ? `${formatEkskulTime(item.start_time)}–${formatEkskulTime(item.end_time)}`
+        : "-";
+    const kuota = `${item.active_members ?? 0}/${item.max_members ?? "-"}`;
+
+    const el = document.createElement("div");
+    el.className = "ekskul-card";
+    el.innerHTML = `
+      <div class="ekskul-card-title">${EKSKUL_ICON} ${escapeHtml(item.name)}</div>
+      <div class="ekskul-card-row"><strong>Pembina</strong> : ${escapeHtml(item.teacher_name)}</div>
+      <div class="ekskul-card-row"><strong>${escapeHtml(day)}</strong>, ${escapeHtml(time)}</div>
+      <div class="ekskul-card-row"><strong>Lokasi</strong> : ${escapeHtml(item.location)}</div>
+      <div class="ekskul-card-row"><strong>Peserta</strong> : ${escapeHtml(kuota)}</div>
+      <button class="ghost" data-detail="${item.id}">Lihat Detail</button>
+    `;
+    grid.appendChild(el);
+  });
+
+  ekskulWrap.innerHTML = "";
+  ekskulWrap.appendChild(grid);
+
+  ekskulWrap.querySelectorAll("[data-detail]").forEach((btn) => {
+    btn.onclick = () => renderEkskulDetail(btn.dataset.detail);
+  });
+}
+
+function renderEkskulDetail(id) {
+  if (!ekskulDetail) return;
+  const item = EKSKUL_CACHE.find((e) => String(e.id) === String(id));
+  if (!item) {
+    ekskulDetail.innerHTML = "";
+    errorAlert("Gagal memuat detail ekstrakurikuler");
+    return;
+  }
+
+  const day = formatEkskulDay(item.day_of_week);
+  const time =
+    formatEkskulTime(item.start_time) && formatEkskulTime(item.end_time)
+      ? `${formatEkskulTime(item.start_time)}–${formatEkskulTime(item.end_time)}`
+      : "-";
+  const kuota = `${item.active_members ?? 0}/${item.max_members ?? "-"}`;
+
+  ekskulDetail.innerHTML = `
+    <div class="ekskul-detail-card">
+      <div class="ekskul-detail-row"><span class="ekskul-detail-label">Nama</span><span>: ${escapeHtml(item.name)}</span></div>
+      <div class="ekskul-detail-row"><span class="ekskul-detail-label">Pembina</span><span>: ${escapeHtml(item.teacher_name)}</span></div>
+      <div class="ekskul-detail-row"><span class="ekskul-detail-label">Jadwal</span><span>: ${escapeHtml(day)}</span></div>
+      <div class="ekskul-detail-row"><span class="ekskul-detail-label">Waktu</span><span>: ${escapeHtml(time)}</span></div>
+      <div class="ekskul-detail-row"><span class="ekskul-detail-label">Lokasi</span><span>: ${escapeHtml(item.location)}</span></div>
+      <div class="ekskul-detail-row"><span class="ekskul-detail-label">Kapasitas</span><span>: ${escapeHtml(kuota)}</span></div>
+      <div class="ekskul-detail-row"><span class="ekskul-detail-label">Deskripsi</span><span>: ${escapeHtml(item.description) || "-"}</span></div>
+    </div>
+  `;
+  ekskulDetail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function fetchEkskulMine() {
+  try {
+    const res = await fetch("/api/public/extracurriculars/mine", {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j.data || [];
+  } catch (err) {
+    console.error("fetchEkskulMine error:", err);
+    return null;
+  }
+}
+
+function renderEkskulMine(items) {
+  if (!ekskulMineWrap) return;
+
+  if (items === null) {
+    ekskulMineWrap.innerHTML = `<div class="empty">Gagal memuat data ekstrakurikuler Anda.</div>`;
+    return;
+  }
+  if (!items.length) {
+    ekskulMineWrap.innerHTML = `<div class="empty">Anda tidak mengikuti ekstrakurikuler manapun.</div>`;
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "ekskul-grid";
+
+  items.forEach((item) => {
+    const day = formatEkskulDay(item.day_of_week);
+    const time =
+      formatEkskulTime(item.start_time) && formatEkskulTime(item.end_time)
+        ? `${formatEkskulTime(item.start_time)}–${formatEkskulTime(item.end_time)}`
+        : "-";
+
+    const el = document.createElement("div");
+    el.className = "ekskul-card";
+    el.innerHTML = `
+      <div class="ekskul-card-title">${EKSKUL_ICON} ${escapeHtml(item.name)}</div>
+      <div class="ekskul-card-row"><strong>Pembina</strong> : ${escapeHtml(item.teacher_name)}</div>
+      <div class="ekskul-card-row"><strong>${escapeHtml(day)}</strong>, ${escapeHtml(time)}</div>
+      <div class="ekskul-card-row"><strong>Lokasi</strong> : ${escapeHtml(item.location)}</div>
+      <div class="ekskul-card-row"><strong>Bergabung sejak</strong> : ${escapeHtml(item.join_date || "-")}</div>
+    `;
+    grid.appendChild(el);
+  });
+
+  ekskulMineWrap.innerHTML = "";
+  ekskulMineWrap.appendChild(grid);
+}
+
+async function initEkskul() {
+  if (ekskulMineWrap) {
+    ekskulMineWrap.innerHTML = `<div class="empty">Memuat data...</div>`;
+    const mine = await fetchEkskulMine();
+    renderEkskulMine(mine);
+  }
+
+  if (!ekskulWrap) return;
+  ekskulWrap.innerHTML = `<div class="empty">Memuat ekstrakurikuler...</div>`;
+  const items = await fetchEkskulList();
+  renderEkskulList(items);
+}
+
 /* ---------- Ganti Password ---------- */
 const gantiPasswordForm = document.getElementById("gantiPasswordForm");
 const gantiPasswordMsg = document.getElementById("gantiPasswordMsg");
@@ -594,4 +858,6 @@ if (gantiPasswordForm) {
   renderJadwalList(jadwals || []);
   // init guru list
   await initGuru();
+  // Ekstrakurikuler
+  await initEkskul();
 })();

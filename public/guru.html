@@ -14,11 +14,14 @@
         <h2 class="logo">SMS Guru</h2>
         <nav>
           <button data-page="dashboard">Dashboard</button>
-          <button data-page="jadwal">Jadwal</button>
-          <button data-page="guru">Lihat Daftar Guru</button>
+          <p class="logo">DATA MASTER</p>
+          <button data-page="guru">Data Guru</button>
           <button data-page="siswa">Data Siswa</button>
+          <p class="logo">AKADEMIK</p>
           <button data-page="absensi">Absensi</button>
           <button data-page="rekap">Rekap Absensi</button>
+          <button data-page="jadwal">Jadwal</button>
+          <p class="logo">AKUN</p>
           <button data-page="password">Ganti Password</button>
         </nav>
       </aside>
@@ -39,6 +42,17 @@
             <div id="guru_profilWrap">
               <div class="empty">Memuat profil...</div>
             </div>
+
+            <!-- EKSTRAKURIKULER YANG DIBINA -->
+            <div
+              id="guruEkstrakurikulerWrap"
+              style="display: none; margin-top: 24px"
+            ></div>
+
+            <div
+              id="guruEkstraDetailWrap"
+              style="display: none; margin-top: 24px"
+            ></div>
 
             <p class="section-title">Absensi Hari Ini</p>
             <div class="stat-grid" id="statToday">

@@ -317,6 +317,54 @@ th {
   cursor: pointer;
 }
 
+/* =========================================================
+   SARANA & PRASARANA - KEPALA SEKOLAH
+========================================================= */
+
+.facility-stats {
+  margin-bottom: 20px;
+}
+
+.facility-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.facility-filters input,
+.facility-filters select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.btn-detail {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#kepalaSaranaDetailContent table,
+#kepalaPrasaranaDetailContent table {
+  width: 100%;
+}
+
+#kepalaSaranaDetailContent th,
+#kepalaPrasaranaDetailContent th {
+  width: 220px;
+  text-align: left;
+}
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .menu-toggle {

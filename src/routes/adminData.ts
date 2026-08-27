@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { db } from "../db";
 import { verifyToken, createUser, findUserByUsername } from "../services/auth";
 import { getCurrentStudent } from "../services/currentStudent";
+import { getCurrentTeacher } from "../services/currentTeacher";
 import { getStudentByUserId, getStudentByNis } from "../services/student";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
@@ -136,31 +137,151 @@ export const adminDataRouter = new Elysia({ prefix: "/api/admin" })
   /* =====================
    DASHBOARD
    ===================== */
-  .get("/dashboard", ({ headers, set }) => {
-    const cookie = headers.cookie ?? "";
-    const m = cookie.match(/token=([^;]+)/);
-    const token = m ? m[1] : null;
+  .get("/dashboard", async ({ headers, set }) => {
+    try {
+      const cookie = headers.cookie ?? "";
+      const m = cookie.match(/token=([^;]+)/);
+      const token = m ? m[1] : null;
 
-    if (!token) {
-      set.status = 401;
-      return { error: "Unauthorized" };
+      if (!token) {
+        set.status = 401;
+        return { error: "Unauthorized" };
+      }
+
+      const user = verifyToken(token);
+      if (!user || !["admin", "kepala"].includes(user.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      // --- 1) Angka ringkasan (kartu statistik) -----------------------
+      const [
+        guruRows,
+        siswaRows,
+        kelasRows,
+        staffRows,
+        saranaRows,
+        prasaranaRows,
+        ekskulRows,
+        ekskulPesertaRows,
+        jadwalRows,
+      ] = await Promise.all([
+        db.query("SELECT COUNT(*) AS total FROM teachers"),
+        db.query("SELECT COUNT(*) AS total FROM students"),
+        db.query("SELECT COUNT(*) AS total FROM classes"),
+        db.query("SELECT COUNT(*) AS total FROM staff"),
+        db.query("SELECT COUNT(*) AS total FROM facilities"),
+        db.query("SELECT COUNT(*) AS total FROM infrastructure"),
+        db.query(
+          `SELECT COUNT(*) AS total, SUM(status = 'aktif') AS aktif
+           FROM extracurriculars`,
+        ),
+        db.query(
+          `SELECT COUNT(*) AS total FROM extracurricular_members WHERE status = 'aktif'`,
+        ),
+        db.query("SELECT COUNT(*) AS total FROM schedules"),
+      ]);
+
+      const ekskulStat: any = (ekskulRows[0] as any)[0] || {};
+
+      // --- 2) Insight actionable ---------------------------------------
+
+      // a) Ekskul yang hampir penuh kapasitas (>= 80% dari max_members)
+      const [ekskulHampirPenuhRows]: any = await db.query(
+        `SELECT
+          e.id,
+          e.name,
+          e.max_members,
+          (
+            SELECT COUNT(*)
+            FROM extracurricular_members em
+            WHERE em.extracurricular_id = e.id
+              AND em.status = 'aktif'
+          ) AS active_members
+         FROM extracurriculars e
+         WHERE e.status = 'aktif'
+           AND e.max_members IS NOT NULL
+           AND e.max_members > 0
+         HAVING active_members >= (e.max_members * 0.8)
+         ORDER BY (active_members / e.max_members) DESC`,
+      );
+
+      // b) Guru yang belum punya mapel (teacher_type = 'mapel') atau
+      //    belum mengampu kelas (teacher_type = 'kelas', classes.wali_id)
+      const [guruBelumLengkapRows]: any = await db.query(
+        `SELECT t.id, t.nama, t.teacher_type
+         FROM teachers t
+         WHERE (
+           t.teacher_type = 'mapel'
+           AND NOT EXISTS (
+             SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = t.id
+           )
+         ) OR (
+           t.teacher_type = 'kelas'
+           AND NOT EXISTS (
+             SELECT 1 FROM classes c WHERE c.wali_id = t.id
+           )
+         )
+         ORDER BY t.nama`,
+      );
+
+      // c) Siswa yang belum punya user_id ter-link (rawan gejala fallback
+      //    NIS di getCurrentStudent kalau username login-nya berubah)
+      const [siswaBelumAkunCountRows]: any = await db.query(
+        `SELECT COUNT(*) AS total FROM students WHERE user_id IS NULL`,
+      );
+      const [siswaBelumAkunSampleRows]: any = await db.query(
+        `SELECT id, nis, nama
+         FROM students
+         WHERE user_id IS NULL
+         ORDER BY nama
+         LIMIT 10`,
+      );
+
+      return {
+        guru: (guruRows[0] as any)[0].total,
+        siswa: (siswaRows[0] as any)[0].total,
+        kelas: (kelasRows[0] as any)[0].total,
+        staff: (staffRows[0] as any)[0].total,
+        sarana: (saranaRows[0] as any)[0].total,
+        prasarana: (prasaranaRows[0] as any)[0].total,
+        ekstrakurikuler: {
+          total: Number(ekskulStat.total || 0),
+          aktif: Number(ekskulStat.aktif || 0),
+          total_peserta: Number((ekskulPesertaRows[0] as any)[0]?.total || 0),
+        },
+        jadwal_generated: (jadwalRows[0] as any)[0].total,
+        insights: {
+          ekskul_hampir_penuh: (ekskulHampirPenuhRows as any[]).map((r) => ({
+            id: r.id,
+            name: r.name,
+            active_members: Number(r.active_members || 0),
+            max_members: Number(r.max_members || 0),
+          })),
+          guru_belum_lengkap: (guruBelumLengkapRows as any[]).map((r) => ({
+            id: r.id,
+            nama: r.nama,
+            teacher_type: r.teacher_type,
+            issue:
+              r.teacher_type === "mapel"
+                ? "Belum ada mapel diampu"
+                : "Belum mengampu kelas (wali kelas)",
+          })),
+          siswa_belum_akun: {
+            count: Number((siswaBelumAkunCountRows as any[])[0]?.total || 0),
+            sample: (siswaBelumAkunSampleRows as any[]).map((r) => ({
+              id: r.id,
+              nis: r.nis,
+              nama: r.nama,
+            })),
+          },
+        },
+      };
+    } catch (err: any) {
+      console.error("GET /api/admin/dashboard error:", err);
+      set.status = 500;
+      return { error: err.message || "Gagal memuat data dashboard" };
     }
-
-    const user = verifyToken(token);
-    if (!user || !["admin", "kepala"].includes(user.role)) {
-      set.status = 403;
-      return { error: "Forbidden" };
-    }
-
-    return Promise.all([
-      db.query("SELECT COUNT(*) AS total FROM teachers"),
-      db.query("SELECT COUNT(*) AS total FROM students"),
-      db.query("SELECT COUNT(*) AS total FROM classes"),
-    ]).then(([guru, siswa, kelas]) => ({
-      guru: (guru[0] as any)[0].total,
-      siswa: (siswa[0] as any)[0].total,
-      kelas: (kelas[0] as any)[0].total,
-    }));
   })
 
   /* =====================
@@ -657,6 +778,288 @@ export const adminDataRouter = new Elysia({ prefix: "/api/admin" })
   })
 
   /* =====================
+   STAFF
+   ===================== */
+
+  /* list staff + search (nama, jabatan, status) */
+  .get("/staff", async ({ headers, set, query }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const q = query as any;
+      const conditions: string[] = [];
+      const params: any[] = [];
+
+      if (q?.nama) {
+        conditions.push("nama_lengkap LIKE ?");
+        params.push(`%${q.nama}%`);
+      }
+      if (q?.jabatan) {
+        conditions.push("jabatan = ?");
+        params.push(q.jabatan);
+      }
+      if (q?.status) {
+        conditions.push("status = ?");
+        params.push(q.status);
+      }
+
+      const where = conditions.length
+        ? `WHERE ${conditions.join(" AND ")}`
+        : "";
+      const [rows] = await db.query(
+        `SELECT * FROM staff ${where} ORDER BY nama_lengkap`,
+        params,
+      );
+      return { ok: true, data: rows };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* daftar jabatan unik, dipakai untuk isi dropdown filter search */
+  .get("/staff/jabatan", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+      const [rows] = await db.query(
+        "SELECT DISTINCT jabatan FROM staff ORDER BY jabatan",
+      );
+      return { ok: true, data: (rows as any[]).map((r) => r.jabatan) };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* get staff by id (dipakai untuk edit & detail) */
+  .get("/staff/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = params.id;
+      const [rows] = await db.query(
+        "SELECT * FROM staff WHERE id = ? LIMIT 1",
+        [id],
+      );
+      const r = (rows as any[])[0] ?? null;
+      if (!r) {
+        set.status = 404;
+        return { error: "Not found" };
+      }
+      return { ok: true, data: r };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* tambah staff baru */
+  .post("/staff", async ({ body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const {
+        nik,
+        nama_lengkap,
+        jenis_kelamin,
+        agama,
+        tempat_lahir,
+        tanggal_lahir,
+        alamat,
+        no_hp,
+        email,
+        jabatan,
+        status_kepegawaian,
+        tanggal_mulai,
+        status,
+        keterangan,
+      } = body as any;
+
+      if (!nik || !nama_lengkap || !jenis_kelamin || !jabatan) {
+        set.status = 400;
+        return {
+          error: "NIK, nama lengkap, jenis kelamin, dan jabatan wajib diisi",
+        };
+      }
+
+      const [found] = await db.query(
+        "SELECT id FROM staff WHERE nik = ? LIMIT 1",
+        [nik],
+      );
+      if ((found as any[]).length) {
+        set.status = 400;
+        return { error: "NIK sudah terdaftar pada staff lain" };
+      }
+
+      const [res]: any = await db.query(
+        `INSERT INTO staff
+          (nik, nama_lengkap, jenis_kelamin, agama, tempat_lahir, tanggal_lahir,
+           alamat, no_hp, email, jabatan, status_kepegawaian, tanggal_mulai, status, keterangan)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          nik,
+          nama_lengkap,
+          jenis_kelamin,
+          agama || null,
+          tempat_lahir || null,
+          tanggal_lahir || null,
+          alamat || null,
+          no_hp || null,
+          email || null,
+          jabatan,
+          status_kepegawaian || null,
+          tanggal_mulai || null,
+          status || "aktif",
+          keterangan || null,
+        ],
+      );
+
+      return { ok: true, id: res.insertId };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* edit staff */
+  .put("/staff/:id", async ({ params, body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = params.id;
+      const {
+        nik,
+        nama_lengkap,
+        jenis_kelamin,
+        agama,
+        tempat_lahir,
+        tanggal_lahir,
+        alamat,
+        no_hp,
+        email,
+        jabatan,
+        status_kepegawaian,
+        tanggal_mulai,
+        status,
+        keterangan,
+      } = body as any;
+
+      if (!nik || !nama_lengkap || !jenis_kelamin || !jabatan) {
+        set.status = 400;
+        return {
+          error: "NIK, nama lengkap, jenis kelamin, dan jabatan wajib diisi",
+        };
+      }
+
+      const [found] = await db.query(
+        "SELECT id FROM staff WHERE nik = ? AND id != ? LIMIT 1",
+        [nik, id],
+      );
+      if ((found as any[]).length) {
+        set.status = 400;
+        return { error: "NIK sudah dipakai oleh staff lain" };
+      }
+
+      await db.query(
+        `UPDATE staff SET
+          nik=?, nama_lengkap=?, jenis_kelamin=?, agama=?, tempat_lahir=?, tanggal_lahir=?,
+          alamat=?, no_hp=?, email=?, jabatan=?, status_kepegawaian=?, tanggal_mulai=?, status=?, keterangan=?
+         WHERE id=?`,
+        [
+          nik,
+          nama_lengkap,
+          jenis_kelamin,
+          agama || null,
+          tempat_lahir || null,
+          tanggal_lahir || null,
+          alamat || null,
+          no_hp || null,
+          email || null,
+          jabatan,
+          status_kepegawaian || null,
+          tanggal_mulai || null,
+          status || "aktif",
+          keterangan || null,
+          id,
+        ],
+      );
+      return { ok: true };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* hapus staff - hanya admin */
+  .delete("/staff/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      // Hanya admin yang boleh menghapus
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = params.id;
+
+      // Cek apakah staff ada
+      const [found] = await db.query(
+        "SELECT id FROM staff WHERE id = ? LIMIT 1",
+        [id],
+      );
+
+      if (!(found as any[]).length) {
+        set.status = 404;
+        return { error: "Data staff tidak ditemukan" };
+      }
+
+      // Hapus staff
+      await db.query("DELETE FROM staff WHERE id = ?", [id]);
+
+      return {
+        ok: true,
+        message: "Data staff berhasil dihapus",
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* =====================
    STUDENTS (SISWA)
    ===================== */
   .get("/siswa", async ({ headers, set, query }) => {
@@ -918,6 +1321,2169 @@ export const adminDataRouter = new Elysia({ prefix: "/api/admin" })
     }
   })
 
+  /* =========================================================
+     SARANA & PRASARANA
+     Admin dan Kepala dapat mengakses API.
+  ========================================================= */
+
+  .get("/facilities", async ({ query, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const q: any = query || {};
+
+      const where: string[] = [];
+      const values: any[] = [];
+
+      if (q.search) {
+        where.push("(f.name LIKE ? OR f.code LIKE ?)");
+        values.push(`%${q.search}%`, `%${q.search}%`);
+      }
+
+      if (q.category_id) {
+        where.push("f.category_id = ?");
+        values.push(Number(q.category_id));
+      }
+
+      if (q.condition_status) {
+        where.push("f.condition_status = ?");
+        values.push(q.condition_status);
+      }
+
+      if (q.status) {
+        where.push("f.status = ?");
+        values.push(q.status);
+      }
+
+      if (q.location) {
+        where.push("f.location = ?");
+        values.push(q.location);
+      }
+
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+      const [rows] = await db.query(
+        `SELECT
+          f.*,
+          fc.name AS category_name
+         FROM facilities f
+         LEFT JOIN facility_categories fc
+           ON fc.id = f.category_id
+         ${whereSql}
+         ORDER BY f.id DESC`,
+        values,
+      );
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .get("/facilities/stats", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(
+        `SELECT
+          COUNT(*) AS total,
+          SUM(condition_status = 'baik') AS baik,
+          SUM(condition_status = 'rusak_ringan') AS rusak_ringan,
+          SUM(condition_status = 'rusak_berat') AS rusak_berat
+         FROM facilities`,
+      );
+
+      const stat: any = (rows as any[])[0] || {};
+
+      return {
+        ok: true,
+        data: {
+          total: Number(stat.total || 0),
+          baik: Number(stat.baik || 0),
+          rusak_ringan: Number(stat.rusak_ringan || 0),
+          rusak_berat: Number(stat.rusak_berat || 0),
+        },
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .get("/facilities/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [facilityRows] = await db.query(
+        `SELECT
+          f.*,
+          fc.name AS category_name
+         FROM facilities f
+         LEFT JOIN facility_categories fc
+           ON fc.id = f.category_id
+         WHERE f.id = ?
+         LIMIT 1`,
+        [params.id],
+      );
+
+      const facility = (facilityRows as any[])[0];
+
+      if (!facility) {
+        set.status = 404;
+        return { error: "Data sarana tidak ditemukan" };
+      }
+
+      const [maintenanceRows] = await db.query(
+        `SELECT *
+         FROM facility_maintenance
+         WHERE facility_id = ?
+         ORDER BY maintenance_date DESC, id DESC`,
+        [params.id],
+      );
+
+      return {
+        ok: true,
+        data: facility,
+        maintenance: maintenanceRows,
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .get("/facility-categories", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(
+        `SELECT id, name, description
+         FROM facility_categories
+         ORDER BY name ASC`,
+      );
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .get("/facilities/locations", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(
+        `SELECT DISTINCT location
+         FROM facilities
+         WHERE location IS NOT NULL
+           AND TRIM(location) <> ''
+         ORDER BY location ASC`,
+      );
+
+      return {
+        ok: true,
+        data: (rows as any[]).map((r) => r.location),
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .post("/facilities", async ({ body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const b: any = body;
+
+      if (!b.category_id || !b.code || !b.name) {
+        set.status = 400;
+        return {
+          error: "Kategori, kode, dan nama sarana wajib diisi",
+        };
+      }
+
+      const [categoryRows] = await db.query(
+        "SELECT id FROM facility_categories WHERE id = ? LIMIT 1",
+        [b.category_id],
+      );
+
+      if (!(categoryRows as any[]).length) {
+        set.status = 400;
+        return { error: "Kategori sarana tidak ditemukan" };
+      }
+
+      const [found] = await db.query(
+        "SELECT id FROM facilities WHERE code = ? LIMIT 1",
+        [b.code],
+      );
+
+      if ((found as any[]).length) {
+        set.status = 400;
+        return { error: "Kode sarana sudah digunakan" };
+      }
+
+      const [result]: any = await db.query(
+        `INSERT INTO facilities (
+          category_id,
+          code,
+          name,
+          quantity,
+          condition_status,
+          location,
+          procurement_date,
+          funding_source,
+          description,
+          status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          Number(b.category_id),
+          b.code.trim(),
+          b.name.trim(),
+          Number(b.quantity || 1),
+          b.condition_status || "baik",
+          b.location || null,
+          b.procurement_date || null,
+          b.funding_source || null,
+          b.description || null,
+          b.status || "aktif",
+        ],
+      );
+
+      return {
+        ok: true,
+        id: result.insertId,
+      };
+    } catch (err: any) {
+      console.error(err);
+
+      if (err.code === "ER_DUP_ENTRY") {
+        set.status = 400;
+        return { error: "Kode sarana sudah digunakan" };
+      }
+
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .put("/facilities/:id", async ({ params, body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const b: any = body;
+
+      if (!b.category_id || !b.code || !b.name) {
+        set.status = 400;
+        return {
+          error: "Kategori, kode, dan nama sarana wajib diisi",
+        };
+      }
+
+      const [found] = await db.query(
+        `SELECT id
+         FROM facilities
+         WHERE code = ?
+           AND id <> ?
+         LIMIT 1`,
+        [b.code, params.id],
+      );
+
+      if ((found as any[]).length) {
+        set.status = 400;
+        return { error: "Kode sarana sudah digunakan" };
+      }
+
+      const [result]: any = await db.query(
+        `UPDATE facilities SET
+          category_id = ?,
+          code = ?,
+          name = ?,
+          quantity = ?,
+          condition_status = ?,
+          location = ?,
+          procurement_date = ?,
+          funding_source = ?,
+          description = ?,
+          status = ?
+         WHERE id = ?`,
+        [
+          Number(b.category_id),
+          b.code.trim(),
+          b.name.trim(),
+          Number(b.quantity || 1),
+          b.condition_status || "baik",
+          b.location || null,
+          b.procurement_date || null,
+          b.funding_source || null,
+          b.description || null,
+          b.status || "aktif",
+          params.id,
+        ],
+      );
+
+      if (!result.affectedRows) {
+        set.status = 404;
+        return { error: "Data sarana tidak ditemukan" };
+      }
+
+      return { ok: true };
+    } catch (err: any) {
+      console.error(err);
+
+      if (err.code === "ER_DUP_ENTRY") {
+        set.status = 400;
+        return { error: "Kode sarana sudah digunakan" };
+      }
+
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .delete("/facilities/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      await db.query("DELETE FROM facility_maintenance WHERE facility_id = ?", [
+        params.id,
+      ]);
+
+      const [result]: any = await db.query(
+        "DELETE FROM facilities WHERE id = ?",
+        [params.id],
+      );
+
+      if (!result.affectedRows) {
+        set.status = 404;
+        return { error: "Data sarana tidak ditemukan" };
+      }
+
+      return { ok: true };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* =====================
+     PRASARANA
+  ===================== */
+
+  .get("/infrastructure/stats", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(
+        `SELECT
+          COUNT(*) AS total,
+          SUM(condition_status = 'baik') AS baik,
+          SUM(condition_status = 'rusak_ringan') AS rusak_ringan,
+          SUM(condition_status = 'rusak_berat') AS rusak_berat
+         FROM infrastructure`,
+      );
+
+      const stat: any = (rows as any[])[0] || {};
+
+      return {
+        ok: true,
+        data: {
+          total: Number(stat.total || 0),
+          baik: Number(stat.baik || 0),
+          rusak_ringan: Number(stat.rusak_ringan || 0),
+          rusak_berat: Number(stat.rusak_berat || 0),
+        },
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .get("/infrastructure/types", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(
+        `SELECT DISTINCT type
+         FROM infrastructure
+         WHERE TRIM(type) <> ''
+         ORDER BY type ASC`,
+      );
+
+      return {
+        ok: true,
+        data: (rows as any[]).map((r) => r.type),
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .get("/infrastructure", async ({ query, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const q: any = query || {};
+
+      const where: string[] = [];
+      const values: any[] = [];
+
+      if (q.search) {
+        where.push("(name LIKE ? OR code LIKE ?)");
+        values.push(`%${q.search}%`, `%${q.search}%`);
+      }
+
+      if (q.type) {
+        where.push("type = ?");
+        values.push(q.type);
+      }
+
+      if (q.condition_status) {
+        where.push("condition_status = ?");
+        values.push(q.condition_status);
+      }
+
+      if (q.status) {
+        where.push("status = ?");
+        values.push(q.status);
+      }
+
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+      const [rows] = await db.query(
+        `SELECT *
+         FROM infrastructure
+         ${whereSql}
+         ORDER BY id DESC`,
+        values,
+      );
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .get("/infrastructure/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(
+        "SELECT * FROM infrastructure WHERE id = ? LIMIT 1",
+        [params.id],
+      );
+
+      const item = (rows as any[])[0];
+
+      if (!item) {
+        set.status = 404;
+        return { error: "Data prasarana tidak ditemukan" };
+      }
+
+      return {
+        ok: true,
+        data: item,
+      };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .post("/infrastructure", async ({ body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const b: any = body;
+
+      if (!b.code || !b.name || !b.type) {
+        set.status = 400;
+        return {
+          error: "Kode, nama, dan jenis prasarana wajib diisi",
+        };
+      }
+
+      const [found] = await db.query(
+        "SELECT id FROM infrastructure WHERE code = ? LIMIT 1",
+        [b.code],
+      );
+
+      if ((found as any[]).length) {
+        set.status = 400;
+        return { error: "Kode prasarana sudah digunakan" };
+      }
+
+      const [result]: any = await db.query(
+        `INSERT INTO infrastructure (
+          code,
+          name,
+          type,
+          capacity,
+          area_size,
+          location,
+          condition_status,
+          status,
+          description
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          b.code.trim(),
+          b.name.trim(),
+          b.type.trim(),
+          b.capacity ?? null,
+          b.area_size ?? null,
+          b.location || null,
+          b.condition_status || "baik",
+          b.status || "aktif",
+          b.description || null,
+        ],
+      );
+
+      return {
+        ok: true,
+        id: result.insertId,
+      };
+    } catch (err: any) {
+      console.error(err);
+
+      if (err.code === "ER_DUP_ENTRY") {
+        set.status = 400;
+        return { error: "Kode prasarana sudah digunakan" };
+      }
+
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .put("/infrastructure/:id", async ({ params, body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const b: any = body;
+
+      if (!b.code || !b.name || !b.type) {
+        set.status = 400;
+        return {
+          error: "Kode, nama, dan jenis prasarana wajib diisi",
+        };
+      }
+
+      const [found] = await db.query(
+        `SELECT id
+         FROM infrastructure
+         WHERE code = ?
+           AND id <> ?
+         LIMIT 1`,
+        [b.code, params.id],
+      );
+
+      if ((found as any[]).length) {
+        set.status = 400;
+        return { error: "Kode prasarana sudah digunakan" };
+      }
+
+      const [result]: any = await db.query(
+        `UPDATE infrastructure SET
+          code = ?,
+          name = ?,
+          type = ?,
+          capacity = ?,
+          area_size = ?,
+          location = ?,
+          condition_status = ?,
+          status = ?,
+          description = ?
+         WHERE id = ?`,
+        [
+          b.code.trim(),
+          b.name.trim(),
+          b.type.trim(),
+          b.capacity ?? null,
+          b.area_size ?? null,
+          b.location || null,
+          b.condition_status || "baik",
+          b.status || "aktif",
+          b.description || null,
+          params.id,
+        ],
+      );
+
+      if (!result.affectedRows) {
+        set.status = 404;
+        return { error: "Data prasarana tidak ditemukan" };
+      }
+
+      return { ok: true };
+    } catch (err: any) {
+      console.error(err);
+
+      if (err.code === "ER_DUP_ENTRY") {
+        set.status = 400;
+        return { error: "Kode prasarana sudah digunakan" };
+      }
+
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  .delete("/infrastructure/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [result]: any = await db.query(
+        "DELETE FROM infrastructure WHERE id = ?",
+        [params.id],
+      );
+
+      if (!result.affectedRows) {
+        set.status = 404;
+        return { error: "Data prasarana tidak ditemukan" };
+      }
+
+      return { ok: true };
+    } catch (err: any) {
+      console.error(err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  /* =====================================================
+   FACILITY MAINTENANCE
+   RIWAYAT PEMELIHARAAN SARANA
+===================================================== */
+
+  /* GET semua riwayat berdasarkan facility */
+  .get("/facilities/:id/maintenance", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      // Admin dan Kepala boleh melihat
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const facilityId = Number(params.id);
+
+      if (!facilityId) {
+        set.status = 400;
+        return { error: "ID sarana tidak valid" };
+      }
+
+      const [facilityRows]: any = await db.query(
+        "SELECT id FROM facilities WHERE id = ? LIMIT 1",
+        [facilityId],
+      );
+
+      if (!facilityRows.length) {
+        set.status = 404;
+        return { error: "Sarana tidak ditemukan" };
+      }
+
+      const [rows]: any = await db.query(
+        `
+        SELECT
+          id,
+          facility_id,
+          maintenance_date,
+          issue_description,
+          action_taken,
+          cost,
+          status,
+          notes,
+          created_at,
+          updated_at
+        FROM facility_maintenance
+        WHERE facility_id = ?
+        ORDER BY maintenance_date DESC, id DESC
+      `,
+        [facilityId],
+      );
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error("GET facility maintenance error:", err);
+      set.status = 500;
+      return {
+        error: err?.message || "Gagal memuat riwayat pemeliharaan",
+      };
+    }
+  })
+
+  /* GET satu riwayat pemeliharaan */
+  .get("/facility-maintenance/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      // Admin dan Kepala boleh melihat
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = Number(params.id);
+
+      const [rows]: any = await db.query(
+        `
+        SELECT
+          id,
+          facility_id,
+          maintenance_date,
+          issue_description,
+          action_taken,
+          cost,
+          status,
+          notes,
+          created_at,
+          updated_at
+        FROM facility_maintenance
+        WHERE id = ?
+        LIMIT 1
+      `,
+        [id],
+      );
+
+      if (!rows.length) {
+        set.status = 404;
+        return { error: "Riwayat pemeliharaan tidak ditemukan" };
+      }
+
+      return {
+        ok: true,
+        data: rows[0],
+      };
+    } catch (err: any) {
+      console.error("GET facility maintenance by id error:", err);
+      set.status = 500;
+      return {
+        error: err?.message || "Gagal memuat data pemeliharaan",
+      };
+    }
+  })
+
+  /* TAMBAH riwayat pemeliharaan */
+  .post(
+    "/facilities/:id/maintenance",
+    async ({ params, body, headers, set }) => {
+      try {
+        const token = getTokenFromHeaders(headers);
+        const payload: any = token ? verifyToken(token) : null;
+
+        // Hanya admin yang boleh menambah
+        if (!payload || payload.role !== "admin") {
+          set.status = 403;
+          return { error: "Forbidden" };
+        }
+
+        const facilityId = Number(params.id);
+        const b = body as any;
+
+        const {
+          maintenance_date,
+          issue_description,
+          action_taken,
+          cost,
+          status,
+          notes,
+        } = b;
+
+        if (!facilityId) {
+          set.status = 400;
+          return { error: "ID sarana tidak valid" };
+        }
+
+        if (!maintenance_date) {
+          set.status = 400;
+          return {
+            error: "Tanggal pemeliharaan wajib diisi",
+          };
+        }
+
+        if (!issue_description || !String(issue_description).trim()) {
+          set.status = 400;
+          return {
+            error: "Deskripsi masalah wajib diisi",
+          };
+        }
+
+        const validStatus = ["dilaporkan", "diproses", "selesai"];
+
+        const maintenanceStatus =
+          status && validStatus.includes(status) ? status : "dilaporkan";
+
+        const maintenanceCost =
+          cost === "" || cost === null || cost === undefined ? 0 : Number(cost);
+
+        if (Number.isNaN(maintenanceCost) || maintenanceCost < 0) {
+          set.status = 400;
+          return {
+            error: "Biaya pemeliharaan tidak valid",
+          };
+        }
+
+        const [facilityRows]: any = await db.query(
+          "SELECT id FROM facilities WHERE id = ? LIMIT 1",
+          [facilityId],
+        );
+
+        if (!facilityRows.length) {
+          set.status = 404;
+          return { error: "Sarana tidak ditemukan" };
+        }
+
+        const [result]: any = await db.query(
+          `
+          INSERT INTO facility_maintenance
+          (
+            facility_id,
+            maintenance_date,
+            issue_description,
+            action_taken,
+            cost,
+            status,
+            notes
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+          [
+            facilityId,
+            maintenance_date,
+            String(issue_description).trim(),
+            action_taken || null,
+            maintenanceCost,
+            maintenanceStatus,
+            notes || null,
+          ],
+        );
+
+        return {
+          ok: true,
+          id: result.insertId,
+          message: "Riwayat pemeliharaan berhasil ditambahkan",
+        };
+      } catch (err: any) {
+        console.error("POST facility maintenance error:", err);
+        set.status = 500;
+        return {
+          error: err?.message || "Gagal menambahkan riwayat pemeliharaan",
+        };
+      }
+    },
+  )
+
+  /* UPDATE riwayat pemeliharaan */
+  .put("/facility-maintenance/:id", async ({ params, body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      // Hanya admin yang boleh mengubah
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = Number(params.id);
+      const b = body as any;
+
+      const {
+        maintenance_date,
+        issue_description,
+        action_taken,
+        cost,
+        status,
+        notes,
+      } = b;
+
+      if (!id) {
+        set.status = 400;
+        return { error: "ID riwayat tidak valid" };
+      }
+
+      if (!maintenance_date) {
+        set.status = 400;
+        return {
+          error: "Tanggal pemeliharaan wajib diisi",
+        };
+      }
+
+      if (!issue_description || !String(issue_description).trim()) {
+        set.status = 400;
+        return {
+          error: "Deskripsi masalah wajib diisi",
+        };
+      }
+
+      const validStatus = ["dilaporkan", "diproses", "selesai"];
+
+      if (!validStatus.includes(status)) {
+        set.status = 400;
+        return {
+          error: "Status pemeliharaan tidak valid",
+        };
+      }
+
+      const maintenanceCost =
+        cost === "" || cost === null || cost === undefined ? 0 : Number(cost);
+
+      if (Number.isNaN(maintenanceCost) || maintenanceCost < 0) {
+        set.status = 400;
+        return {
+          error: "Biaya pemeliharaan tidak valid",
+        };
+      }
+
+      const [existingRows]: any = await db.query(
+        "SELECT id FROM facility_maintenance WHERE id = ? LIMIT 1",
+        [id],
+      );
+
+      if (!existingRows.length) {
+        set.status = 404;
+        return {
+          error: "Riwayat pemeliharaan tidak ditemukan",
+        };
+      }
+
+      await db.query(
+        `
+        UPDATE facility_maintenance
+        SET
+          maintenance_date = ?,
+          issue_description = ?,
+          action_taken = ?,
+          cost = ?,
+          status = ?,
+          notes = ?
+        WHERE id = ?
+      `,
+        [
+          maintenance_date,
+          String(issue_description).trim(),
+          action_taken || null,
+          maintenanceCost,
+          status,
+          notes || null,
+          id,
+        ],
+      );
+
+      return {
+        ok: true,
+        message: "Riwayat pemeliharaan berhasil diperbarui",
+      };
+    } catch (err: any) {
+      console.error("PUT facility maintenance error:", err);
+      set.status = 500;
+      return {
+        error: err?.message || "Gagal memperbarui riwayat pemeliharaan",
+      };
+    }
+  })
+
+  /* HAPUS riwayat pemeliharaan */
+  .delete("/facility-maintenance/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      // Hanya admin yang boleh menghapus
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = Number(params.id);
+
+      if (!id) {
+        set.status = 400;
+        return {
+          error: "ID riwayat tidak valid",
+        };
+      }
+
+      const [existingRows]: any = await db.query(
+        "SELECT id FROM facility_maintenance WHERE id = ? LIMIT 1",
+        [id],
+      );
+
+      if (!existingRows.length) {
+        set.status = 404;
+        return {
+          error: "Riwayat pemeliharaan tidak ditemukan",
+        };
+      }
+
+      await db.query("DELETE FROM facility_maintenance WHERE id = ?", [id]);
+
+      return {
+        ok: true,
+        message: "Riwayat pemeliharaan berhasil dihapus",
+      };
+    } catch (err: any) {
+      console.error("DELETE facility maintenance error:", err);
+      set.status = 500;
+      return {
+        error: err?.message || "Gagal menghapus riwayat pemeliharaan",
+      };
+    }
+  })
+
+  /* =====================================================
+     EKSTRAKURIKULER
+  ===================================================== */
+
+  .get("/extracurriculars/stats", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows]: any = await db.query(`
+          SELECT
+            COUNT(*) AS total,
+            SUM(status = 'aktif') AS aktif
+          FROM extracurriculars
+        `);
+
+      const [memberRows]: any = await db.query(`
+            SELECT COUNT(*) AS total_peserta
+            FROM extracurricular_members
+            WHERE status = 'aktif'
+          `);
+
+      const stat = rows[0] || {};
+      const memberStat = memberRows[0] || {};
+
+      return {
+        ok: true,
+        data: {
+          total: Number(stat.total || 0),
+          aktif: Number(stat.aktif || 0),
+          total_peserta: Number(memberStat.total_peserta || 0),
+        },
+      };
+    } catch (err: any) {
+      console.error("GET extracurricular stats:", err);
+
+      set.status = 500;
+
+      return {
+        error: err.message,
+      };
+    }
+  })
+
+  .get("/extracurriculars", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows]: any = await db.query(`
+            SELECT
+              e.id,
+              e.name,
+              e.description,
+              e.teacher_id,
+              t.nama AS teacher_name,
+              e.day_of_week,
+              e.start_time,
+              e.end_time,
+              e.location,
+              e.max_members,
+              e.status,
+              COUNT(
+                CASE
+                  WHEN em.status = 'aktif'
+                  THEN 1
+                END
+              ) AS active_members
+            FROM extracurriculars e
+            INNER JOIN teachers t
+              ON t.id = e.teacher_id
+            LEFT JOIN extracurricular_members em
+              ON em.extracurricular_id = e.id
+            GROUP BY
+              e.id,
+              e.name,
+              e.description,
+              e.teacher_id,
+              t.nama,
+              e.day_of_week,
+              e.start_time,
+              e.end_time,
+              e.location,
+              e.max_members,
+              e.status
+            ORDER BY e.name ASC
+          `);
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error("GET extracurriculars:", err);
+
+      set.status = 500;
+
+      return {
+        error: err.message,
+      };
+    }
+  })
+
+  .get("/extracurriculars/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = Number(params.id);
+
+      const [rows]: any = await db.query(
+        `
+            SELECT
+              e.id,
+              e.name,
+              e.description,
+              e.teacher_id,
+              t.nama AS teacher_name,
+              e.day_of_week,
+              e.start_time,
+              e.end_time,
+              e.location,
+              e.max_members,
+              e.status,
+              (
+                SELECT COUNT(*)
+                FROM extracurricular_members em
+                WHERE em.extracurricular_id = e.id
+                  AND em.status = 'aktif'
+              ) AS active_members
+            FROM extracurriculars e
+            INNER JOIN teachers t
+              ON t.id = e.teacher_id
+            WHERE e.id = ?
+            LIMIT 1
+            `,
+        [id],
+      );
+
+      if (!rows.length) {
+        set.status = 404;
+
+        return {
+          error: "Ekstrakurikuler tidak ditemukan",
+        };
+      }
+
+      return {
+        ok: true,
+        data: rows[0],
+      };
+    } catch (err: any) {
+      console.error("GET extracurricular detail:", err);
+
+      set.status = 500;
+
+      return {
+        error: err.message,
+      };
+    }
+  })
+
+  .post("/extracurriculars", async ({ body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const b: any = body;
+
+      if (
+        !b.name ||
+        !b.teacher_id ||
+        !b.day_of_week ||
+        !b.start_time ||
+        !b.end_time ||
+        !b.max_members
+      ) {
+        set.status = 400;
+
+        return {
+          error: "Nama, pembina, hari, waktu, dan maksimal anggota wajib diisi",
+        };
+      }
+
+      if (
+        !["senin", "selasa", "rabu", "kamis", "jumat", "sabtu"].includes(
+          b.day_of_week,
+        )
+      ) {
+        set.status = 400;
+
+        return {
+          error: "Hari ekstrakurikuler tidak valid",
+        };
+      }
+
+      if (b.start_time >= b.end_time) {
+        set.status = 400;
+
+        return {
+          error: "Jam selesai harus lebih besar dari jam mulai",
+        };
+      }
+
+      if (Number(b.max_members) < 1) {
+        set.status = 400;
+
+        return {
+          error: "Maksimal anggota minimal 1 siswa",
+        };
+      }
+
+      const [teacherRows]: any = await db.query(
+        "SELECT id FROM teachers WHERE id = ? LIMIT 1",
+        [Number(b.teacher_id)],
+      );
+
+      if (!teacherRows.length) {
+        set.status = 400;
+
+        return {
+          error: "Guru / pembina tidak ditemukan",
+        };
+      }
+
+      const [result]: any = await db.query(
+        `
+            INSERT INTO extracurriculars
+            (
+              name,
+              description,
+              teacher_id,
+              day_of_week,
+              start_time,
+              end_time,
+              location,
+              max_members,
+              status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+        [
+          b.name.trim(),
+          b.description || null,
+          Number(b.teacher_id),
+          b.day_of_week,
+          b.start_time,
+          b.end_time,
+          b.location || null,
+          Number(b.max_members),
+          b.status || "aktif",
+        ],
+      );
+
+      return {
+        ok: true,
+        id: result.insertId,
+      };
+    } catch (err: any) {
+      console.error("POST extracurricular:", err);
+
+      set.status = 500;
+
+      return {
+        error: err.message,
+      };
+    }
+  })
+
+  .put("/extracurriculars/:id", async ({ params, body, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = Number(params.id);
+      const b: any = body;
+
+      if (
+        !b.name ||
+        !b.teacher_id ||
+        !b.day_of_week ||
+        !b.start_time ||
+        !b.end_time ||
+        !b.max_members
+      ) {
+        set.status = 400;
+
+        return {
+          error: "Nama, pembina, hari, waktu, dan maksimal anggota wajib diisi",
+        };
+      }
+
+      if (b.start_time >= b.end_time) {
+        set.status = 400;
+
+        return {
+          error: "Jam selesai harus lebih besar dari jam mulai",
+        };
+      }
+
+      /*
+       * Jangan izinkan max_members lebih kecil
+       * dari jumlah anggota aktif saat ini.
+       */
+      const [memberRows]: any = await db.query(
+        `
+            SELECT COUNT(*) AS total
+            FROM extracurricular_members
+            WHERE extracurricular_id = ?
+              AND status = 'aktif'
+            `,
+        [id],
+      );
+
+      const activeMembers = Number(memberRows[0]?.total || 0);
+
+      if (Number(b.max_members) < activeMembers) {
+        set.status = 400;
+
+        return {
+          error: `Maksimal anggota tidak boleh lebih kecil dari jumlah anggota aktif saat ini (${activeMembers} siswa)`,
+        };
+      }
+
+      const [result]: any = await db.query(
+        `
+            UPDATE extracurriculars
+            SET
+              name = ?,
+              description = ?,
+              teacher_id = ?,
+              day_of_week = ?,
+              start_time = ?,
+              end_time = ?,
+              location = ?,
+              max_members = ?,
+              status = ?
+            WHERE id = ?
+            `,
+        [
+          b.name.trim(),
+          b.description || null,
+          Number(b.teacher_id),
+          b.day_of_week,
+          b.start_time,
+          b.end_time,
+          b.location || null,
+          Number(b.max_members),
+          b.status || "aktif",
+          id,
+        ],
+      );
+
+      if (!result.affectedRows) {
+        set.status = 404;
+
+        return {
+          error: "Ekstrakurikuler tidak ditemukan",
+        };
+      }
+
+      return {
+        ok: true,
+      };
+    } catch (err: any) {
+      console.error("PUT extracurricular:", err);
+
+      set.status = 500;
+
+      return {
+        error: err.message,
+      };
+    }
+  })
+
+  .delete("/extracurriculars/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = Number(params.id);
+
+      const [result]: any = await db.query(
+        "DELETE FROM extracurriculars WHERE id = ?",
+        [id],
+      );
+
+      if (!result.affectedRows) {
+        set.status = 404;
+
+        return {
+          error: "Ekstrakurikuler tidak ditemukan",
+        };
+      }
+
+      return {
+        ok: true,
+      };
+    } catch (err: any) {
+      console.error("DELETE extracurricular:", err);
+
+      set.status = 500;
+
+      return {
+        error: err.message,
+      };
+    }
+  })
+
+  .get("/extracurriculars/:id/members", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || payload.role !== "admin") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const extracurricularId = Number(params.id);
+
+      const [rows]: any = await db.query(
+        `
+            SELECT
+              em.id,
+              em.extracurricular_id,
+              em.student_id,
+              em.join_date,
+              em.status,
+              s.nis,
+              s.nama AS student_name,
+              c.nama AS kelas_nama
+            FROM extracurricular_members em
+            INNER JOIN students s
+              ON s.id = em.student_id
+            LEFT JOIN classes c
+              ON c.id = s.kelas_id
+            WHERE em.extracurricular_id = ?
+            ORDER BY
+              CASE
+                WHEN em.status = 'aktif'
+                THEN 0
+                ELSE 1
+              END,
+              em.join_date ASC,
+              s.nama ASC
+            `,
+        [extracurricularId],
+      );
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error("GET extracurricular members:", err);
+
+      set.status = 500;
+
+      return {
+        error: err.message,
+      };
+    }
+  })
+
+  .post(
+    "/extracurriculars/:id/members",
+    async ({ params, body, headers, set }) => {
+      try {
+        const token = getTokenFromHeaders(headers);
+
+        const payload: any = token ? verifyToken(token) : null;
+
+        if (!payload || payload.role !== "admin") {
+          set.status = 403;
+          return { error: "Forbidden" };
+        }
+
+        const extracurricularId = Number(params.id);
+
+        const b: any = body;
+
+        const studentId = Number(b.student_id);
+
+        const joinDate = b.join_date || new Date().toISOString().slice(0, 10);
+
+        if (!extracurricularId || !studentId) {
+          set.status = 400;
+
+          return {
+            error: "Ekstrakurikuler dan siswa wajib dipilih",
+          };
+        }
+
+        /*
+         * Ambil data ekskul + kapasitas.
+         */
+        const [exRows]: any = await db.query(
+          `
+            SELECT
+              id,
+              max_members,
+              status
+            FROM extracurriculars
+            WHERE id = ?
+            LIMIT 1
+            `,
+          [extracurricularId],
+        );
+
+        if (!exRows.length) {
+          set.status = 404;
+
+          return {
+            error: "Ekstrakurikuler tidak ditemukan",
+          };
+        }
+
+        const ex = exRows[0];
+
+        if (ex.status !== "aktif") {
+          set.status = 400;
+
+          return {
+            error: "Ekstrakurikuler sedang nonaktif",
+          };
+        }
+
+        /*
+         * Pastikan siswa benar-benar ada.
+         */
+        const [studentRows]: any = await db.query(
+          "SELECT id FROM students WHERE id = ? LIMIT 1",
+          [studentId],
+        );
+
+        if (!studentRows.length) {
+          set.status = 400;
+
+          return {
+            error: "Siswa tidak ditemukan",
+          };
+        }
+
+        /*
+         * Cek apakah siswa pernah masuk
+         * ke ekskul ini.
+         */
+        const [existingRows]: any = await db.query(
+          `
+            SELECT
+              id,
+              status
+            FROM extracurricular_members
+            WHERE extracurricular_id = ?
+              AND student_id = ?
+            LIMIT 1
+            `,
+          [extracurricularId, studentId],
+        );
+
+        /*
+         * Kalau masih aktif:
+         * jangan masukkan dua kali.
+         */
+        if (existingRows.length && existingRows[0].status === "aktif") {
+          set.status = 400;
+
+          return {
+            error: "Siswa sudah terdaftar sebagai anggota ekstrakurikuler ini",
+          };
+        }
+
+        /*
+         * Hitung HANYA anggota aktif.
+         */
+        const [countRows]: any = await db.query(
+          `
+            SELECT COUNT(*) AS total
+            FROM extracurricular_members
+            WHERE extracurricular_id = ?
+              AND status = 'aktif'
+            `,
+          [extracurricularId],
+        );
+
+        const activeMembers = Number(countRows[0]?.total || 0);
+
+        const maxMembers = Number(ex.max_members);
+
+        /*
+         * VALIDASI KAPASITAS
+         */
+        if (maxMembers && activeMembers >= maxMembers) {
+          set.status = 400;
+
+          return {
+            error: `Gagal menambahkan anggota. Kapasitas ekstrakurikuler telah mencapai batas maksimal (${maxMembers} siswa).`,
+          };
+        }
+
+        /*
+         * Kalau siswa pernah ikut dan
+         * statusnya "keluar", AKTIFKAN ROW LAMA.
+         *
+         * Tidak membuat row baru karena ada:
+         * UNIQUE(extracurricular_id, student_id)
+         */
+        if (existingRows.length && existingRows[0].status === "keluar") {
+          await db.query(
+            `
+            UPDATE extracurricular_members
+            SET
+              join_date = ?,
+              status = 'aktif'
+            WHERE id = ?
+            `,
+            [joinDate, existingRows[0].id],
+          );
+
+          return {
+            ok: true,
+            message: "Siswa berhasil diaktifkan kembali sebagai anggota",
+          };
+        }
+
+        /*
+         * Siswa belum pernah ikut.
+         */
+        await db.query(
+          `
+          INSERT INTO extracurricular_members
+          (
+            extracurricular_id,
+            student_id,
+            join_date,
+            status
+          )
+          VALUES (?, ?, ?, 'aktif')
+          `,
+          [extracurricularId, studentId, joinDate],
+        );
+
+        return {
+          ok: true,
+          message: "Anggota berhasil ditambahkan",
+        };
+      } catch (err: any) {
+        console.error("POST extracurricular member:", err);
+
+        /*
+         * Safety net untuk UNIQUE KEY.
+         */
+        if (err.code === "ER_DUP_ENTRY") {
+          set.status = 400;
+
+          return {
+            error: "Siswa sudah terdaftar pada ekstrakurikuler ini",
+          };
+        }
+
+        set.status = 500;
+
+        return {
+          error: err.message,
+        };
+      }
+    },
+  )
+
+  .put(
+    "/extracurricular-members/:id/status",
+    async ({ params, body, headers, set }) => {
+      try {
+        const token = getTokenFromHeaders(headers);
+
+        const payload: any = token ? verifyToken(token) : null;
+
+        if (!payload || payload.role !== "admin") {
+          set.status = 403;
+          return { error: "Forbidden" };
+        }
+
+        const id = Number(params.id);
+
+        const status = (body as any)?.status;
+
+        if (!["aktif", "keluar"].includes(status)) {
+          set.status = 400;
+
+          return {
+            error: "Status anggota tidak valid",
+          };
+        }
+
+        /*
+         * Jika mau mengaktifkan kembali,
+         * cek kapasitas terlebih dahulu.
+         */
+        if (status === "aktif") {
+          const [memberRows]: any = await db.query(
+            `
+              SELECT
+                em.extracurricular_id,
+                e.max_members
+              FROM extracurricular_members em
+              INNER JOIN extracurriculars e
+                ON e.id = em.extracurricular_id
+              WHERE em.id = ?
+              LIMIT 1
+              `,
+            [id],
+          );
+
+          if (!memberRows.length) {
+            set.status = 404;
+
+            return {
+              error: "Anggota tidak ditemukan",
+            };
+          }
+
+          const member = memberRows[0];
+
+          const [countRows]: any = await db.query(
+            `
+              SELECT COUNT(*) AS total
+              FROM extracurricular_members
+              WHERE extracurricular_id = ?
+                AND status = 'aktif'
+                AND id <> ?
+              `,
+            [member.extracurricular_id, id],
+          );
+
+          const activeMembers = Number(countRows[0]?.total || 0);
+
+          if (
+            member.max_members !== null &&
+            activeMembers >= Number(member.max_members)
+          ) {
+            set.status = 400;
+
+            return {
+              error: `Tidak dapat mengaktifkan anggota. Kapasitas maksimal (${member.max_members} siswa) sudah penuh.`,
+            };
+          }
+        }
+
+        const [result]: any = await db.query(
+          `
+            UPDATE extracurricular_members
+            SET status = ?
+            WHERE id = ?
+            `,
+          [status, id],
+        );
+
+        if (!result.affectedRows) {
+          set.status = 404;
+
+          return {
+            error: "Anggota ekstrakurikuler tidak ditemukan",
+          };
+        }
+
+        return {
+          ok: true,
+        };
+      } catch (err: any) {
+        console.error("UPDATE extracurricular member status:", err);
+
+        set.status = 500;
+
+        return {
+          error: err.message,
+        };
+      }
+    },
+  )
+
+  /* =========================================================
+   EKSTRAKURIKULER - KEPALA SEKOLAH
+   READ ONLY
+========================================================= */
+
+  /* Statistik ekstrakurikuler */
+  .get("/extracurriculars/stats/kepala", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || payload.role !== "kepala") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(status = 'aktif') AS aktif
+      FROM extracurriculars
+    `);
+
+      const [memberRows] = await db.query(`
+      SELECT COUNT(*) AS total
+      FROM extracurricular_members
+      WHERE status = 'aktif'
+    `);
+
+      const stat: any = (rows as any[])[0] || {};
+      const memberStat: any = (memberRows as any[])[0] || {};
+
+      return {
+        ok: true,
+        data: {
+          total: Number(stat.total || 0),
+          aktif: Number(stat.aktif || 0),
+          total_peserta: Number(memberStat.total || 0),
+        },
+      };
+    } catch (err: any) {
+      console.error("GET extracurricular stats error:", err);
+      set.status = 500;
+      return {
+        error: err?.message || "Gagal memuat statistik ekstrakurikuler",
+      };
+    }
+  })
+
+  /* Daftar ekstrakurikuler - Kepala hanya melihat */
+  .get("/extracurriculars", async ({ headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+      if (!payload || !["admin", "kepala"].includes(payload.role)) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(`
+      SELECT
+        e.id,
+        e.name,
+        e.description,
+        e.teacher_id,
+        t.nama AS teacher_name,
+        e.day_of_week,
+        e.start_time,
+        e.end_time,
+        e.location,
+        e.max_members,
+        e.status,
+
+        (
+          SELECT COUNT(*)
+          FROM extracurricular_members em
+          WHERE em.extracurricular_id = e.id
+            AND em.status = 'aktif'
+        ) AS active_members
+
+      FROM extracurriculars e
+
+      LEFT JOIN teachers t
+        ON t.id = e.teacher_id
+
+      ORDER BY e.name ASC
+    `);
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error("GET extracurriculars error:", err);
+      set.status = 500;
+      return {
+        error: err?.message || "Gagal memuat data ekstrakurikuler",
+      };
+    }
+  })
+
+  /* Detail ekstrakurikuler + daftar anggota */
+  .get("/extracurriculars/kepala/:id", async ({ params, headers, set }) => {
+    try {
+      const token = getTokenFromHeaders(headers);
+      const payload: any = token ? verifyToken(token) : null;
+
+      if (!payload || payload.role !== "kepala") {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const id = Number(params.id);
+
+      if (!id) {
+        set.status = 400;
+        return {
+          error: "ID ekstrakurikuler tidak valid",
+        };
+      }
+
+      /* ==========================
+       DETAIL EKSTRAKURIKULER
+    ========================== */
+
+      const [extraRows] = await db.query(
+        `
+      SELECT
+        e.id,
+        e.name,
+        e.description,
+        e.teacher_id,
+        t.nama AS teacher_name,
+        e.day_of_week,
+        e.start_time,
+        e.end_time,
+        e.location,
+        e.max_members,
+        e.status,
+
+        (
+          SELECT COUNT(*)
+          FROM extracurricular_members em
+          WHERE em.extracurricular_id = e.id
+            AND em.status = 'aktif'
+        ) AS active_members
+
+      FROM extracurriculars e
+
+      LEFT JOIN teachers t
+        ON t.id = e.teacher_id
+
+      WHERE e.id = ?
+
+      LIMIT 1
+      `,
+        [id],
+      );
+
+      const extracurricular = (extraRows as any[])[0];
+
+      if (!extracurricular) {
+        set.status = 404;
+        return {
+          error: "Ekstrakurikuler tidak ditemukan",
+        };
+      }
+
+      /* ==========================
+       DAFTAR ANGGOTA
+    ========================== */
+
+      const [memberRows] = await db.query(
+        `
+      SELECT
+        em.id,
+        em.student_id,
+        em.join_date,
+        em.status,
+
+        s.nis,
+        s.nama AS student_name,
+
+        c.nama AS kelas_nama
+
+      FROM extracurricular_members em
+
+      INNER JOIN students s
+        ON s.id = em.student_id
+
+      LEFT JOIN classes c
+        ON c.id = s.kelas_id
+
+      WHERE em.extracurricular_id = ?
+
+      ORDER BY
+        CASE
+          WHEN em.status = 'aktif' THEN 0
+          ELSE 1
+        END,
+        s.nama ASC
+      `,
+        [id],
+      );
+
+      return {
+        ok: true,
+        data: extracurricular,
+        members: memberRows,
+      };
+    } catch (err: any) {
+      console.error("GET extracurricular detail error:", err);
+      set.status = 500;
+      return {
+        error: err?.message || "Gagal memuat detail ekstrakurikuler",
+      };
+    }
+  })
+
   /* =====================
    SCHEDULES (JADWAL)
    ===================== */
@@ -1077,6 +3643,51 @@ export const adminDataRouter = new Elysia({ prefix: "/api/admin" })
     }
   });
 
+/**
+ * Ambil metadata + assignments dari payload jadwal, tanpa peduli struktur
+ * nesting-nya (payload lama vs baru, dibungkus `payload.payload` atau tidak).
+ * Meniru persis urutan prioritas yang dipakai di frontend (renderJadwalDetail
+ * pada guru.main.js / siswa.main.js) supaya hasilnya konsisten dengan yang
+ * pernah ditampilkan sebelumnya.
+ */
+function extractScheduleMeta(parsed: any) {
+  const classes =
+    (parsed.payload &&
+      Array.isArray(parsed.payload.classes) &&
+      parsed.payload.classes) ||
+    (Array.isArray(parsed.classes) && parsed.classes) ||
+    [];
+
+  const daysPerWeek =
+    (parsed.payload && parsed.payload.daysPerWeek) || parsed.daysPerWeek || 5;
+
+  const periodsPerDay =
+    (parsed.payload && parsed.payload.periodsPerDay) ||
+    parsed.periodsPerDay ||
+    8;
+
+  const periodDuration =
+    (parsed.payload && parsed.payload.periodDuration) ||
+    parsed.periodDuration ||
+    35;
+
+  const assignments =
+    (parsed.payload &&
+      parsed.payload.generated &&
+      Array.isArray(parsed.payload.generated.assignments) &&
+      parsed.payload.generated.assignments) ||
+    (parsed.generated &&
+      Array.isArray(parsed.generated.assignments) &&
+      parsed.generated.assignments) ||
+    (Array.isArray(parsed.assignments) && parsed.assignments) ||
+    (parsed.payload &&
+      Array.isArray(parsed.payload.assignments) &&
+      parsed.payload.assignments) ||
+    [];
+
+  return { classes, daysPerWeek, periodsPerDay, periodDuration, assignments };
+}
+
 export const publicDataRouter = new Elysia({ prefix: "/api/public" })
   /*
   PUBLIC API
@@ -1094,6 +3705,104 @@ export const publicDataRouter = new Elysia({ prefix: "/api/public" })
         data: rows,
       };
     } catch (err: any) {
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  // Ekstrakurikuler yang diikuti siswa yang sedang login.
+  // Kalau siswa belum jadi anggota ekskul manapun (status 'aktif' di
+  // extracurricular_members), data dikembalikan kosong — frontend yang
+  // menampilkan pesan "Anda tidak mengikuti ekstrakurikuler manapun".
+  .get("/extracurriculars/mine", async ({ headers, set }) => {
+    try {
+      const current = await getCurrentStudent(headers);
+      if (!current) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const [rows] = await db.query(
+        `
+          SELECT
+            e.id,
+            e.name,
+            e.description,
+            e.teacher_id,
+            t.nama AS teacher_name,
+            e.day_of_week,
+            e.start_time,
+            e.end_time,
+            e.location,
+            e.max_members,
+            e.status,
+            em.join_date,
+            (
+              SELECT COUNT(*)
+              FROM extracurricular_members em2
+              WHERE em2.extracurricular_id = e.id
+                AND em2.status = 'aktif'
+            ) AS active_members
+          FROM extracurricular_members em
+          INNER JOIN extracurriculars e
+            ON e.id = em.extracurricular_id
+          LEFT JOIN teachers t
+            ON t.id = e.teacher_id
+          WHERE em.student_id = ?
+            AND em.status = 'aktif'
+          ORDER BY e.name ASC
+        `,
+        [current.student.id],
+      );
+
+      return { ok: true, data: rows };
+    } catch (err: any) {
+      console.error("GET /api/public/extracurriculars/mine error:", err);
+      set.status = 500;
+      return { error: err.message };
+    }
+  })
+
+  // Daftar ekstrakurikuler untuk halaman siswa — read-only.
+  // Sengaja tanpa endpoint pendaftaran; siswa belum bisa daftar ekskul
+  // sendiri dari sini (masih dikelola manual oleh pembina/admin).
+  .get("/extracurriculars", async ({ set }) => {
+    try {
+      const [rows] = await db.query(`
+        SELECT
+          e.id,
+          e.name,
+          e.description,
+          e.teacher_id,
+          t.nama AS teacher_name,
+          e.day_of_week,
+          e.start_time,
+          e.end_time,
+          e.location,
+          e.max_members,
+          e.status,
+          COUNT(
+            CASE
+              WHEN em.status = 'aktif'
+              THEN 1
+            END
+          ) AS active_members
+        FROM extracurriculars e
+        LEFT JOIN teachers t
+          ON t.id = e.teacher_id
+        LEFT JOIN extracurricular_members em
+          ON em.extracurricular_id = e.id
+        WHERE e.status = 'aktif'
+        GROUP BY
+          e.id, e.name, e.description, e.teacher_id, t.nama,
+          e.day_of_week, e.start_time, e.end_time, e.location,
+          e.max_members, e.status
+        ORDER BY e.name ASC
+      `);
+
+      return { ok: true, data: rows };
+    } catch (err: any) {
+      console.error("GET /api/public/extracurriculars error:", err);
       set.status = 500;
       return { error: err.message };
     }
@@ -1319,6 +4028,265 @@ export const publicDataRouter = new Elysia({ prefix: "/api/public" })
       return { error: err.message };
     }
   })
+
+  // GET jadwal untuk guru yang login — hanya menampilkan jam mengajar
+  // milik guru tsb sendiri (dicocokkan lewat nama guru, karena assignment
+  // hasil generate jadwal cuma menyimpan teacherName, bukan teacherId).
+  // Bentuk data sengaja flat (hari, sesi, mapel, kelas) — bukan tabel
+  // grid per-kelas seperti endpoint admin/publik — sesuai kebutuhan
+  // halaman "Jadwal Saya" milik guru.
+  .get("/jadwal/mine-guru", async ({ headers, set }) => {
+    try {
+      const current = await getCurrentTeacher(headers);
+      if (!current) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const teacherName = (current.teacher.nama || "").trim().toLowerCase();
+      if (!teacherName) {
+        return { ok: true, data: [] };
+      }
+
+      const [rows] = await db.query(
+        "SELECT id, name, academic, payload, created_at FROM schedules ORDER BY created_at DESC",
+      );
+
+      const out: any[] = [];
+
+      for (const r of rows as any[]) {
+        const parsed = parseSchedulePayload(r.payload);
+        if (!parsed) continue;
+
+        const {
+          classes,
+          daysPerWeek,
+          periodsPerDay,
+          periodDuration,
+          assignments,
+        } = extractScheduleMeta(parsed);
+
+        const mine = (assignments as any[]).filter(
+          (a) =>
+            a &&
+            typeof a.teacherName === "string" &&
+            a.teacherName.trim().toLowerCase() === teacherName,
+        );
+
+        if (!mine.length) continue;
+
+        const items = mine
+          .map((a: any) => ({
+            day: a.day,
+            period: a.period,
+            subjectName: a.subjectName,
+            className:
+              (classes[a.classIdx] &&
+                (classes[a.classIdx].display || classes[a.classIdx].name)) ||
+              "-",
+          }))
+          .sort((x: any, y: any) => x.day - y.day || x.period - y.period);
+
+        out.push({
+          id: r.id,
+          name: r.name,
+          academic: r.academic,
+          created_at: r.created_at,
+          daysPerWeek,
+          periodsPerDay,
+          periodDuration,
+          items,
+        });
+      }
+
+      return { ok: true, data: out };
+    } catch (err: any) {
+      console.error("GET /api/public/jadwal/mine-guru error:", err);
+      set.status = 500;
+      return { error: err?.message ?? String(err) };
+    }
+  })
+
+  /* ============================================================
+   EKSTRAKURIKULER YANG DIBINA GURU LOGIN
+   READ ONLY
+   ============================================================ */
+
+  .get("/extracurriculars/mine-guru", async ({ headers, set }) => {
+    try {
+      const current = await getCurrentTeacher(headers);
+
+      if (!current) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      const teacherId = current.teacher.id;
+
+      const [rows] = await db.query(
+        `
+      SELECT
+        e.id,
+        e.name,
+        e.description,
+        e.day_of_week,
+        e.start_time,
+        e.end_time,
+        e.location,
+        e.max_members,
+        e.status,
+
+        (
+          SELECT COUNT(*)
+          FROM extracurricular_members em
+          WHERE em.extracurricular_id = e.id
+            AND em.status = 'aktif'
+        ) AS active_members
+
+      FROM extracurriculars e
+
+      WHERE e.teacher_id = ?
+
+      ORDER BY
+        CASE
+          WHEN e.status = 'aktif' THEN 0
+          ELSE 1
+        END,
+        e.name ASC
+      `,
+        [teacherId],
+      );
+
+      return {
+        ok: true,
+        data: rows,
+      };
+    } catch (err: any) {
+      console.error("GET /api/public/extracurriculars/mine-guru error:", err);
+
+      set.status = 500;
+
+      return {
+        error: err?.message || "Gagal memuat ekstrakurikuler yang dibina",
+      };
+    }
+  })
+
+  /* ============================================================
+   DETAIL ANGGOTA EKSTRAKURIKULER UNTUK GURU PEMBINA
+   ============================================================ */
+
+  .get(
+    "/extracurriculars/:id/members-guru",
+    async ({ params, headers, set }) => {
+      try {
+        const current = await getCurrentTeacher(headers);
+
+        if (!current) {
+          set.status = 403;
+          return { error: "Forbidden" };
+        }
+
+        const teacherId = current.teacher.id;
+        const extracurricularId = Number(params.id);
+
+        if (!extracurricularId) {
+          set.status = 400;
+          return {
+            error: "ID ekstrakurikuler tidak valid",
+          };
+        }
+
+        /*
+         * Pastikan ekskul memang dibina
+         * oleh guru yang sedang login.
+         */
+        const [extraRows] = await db.query(
+          `
+        SELECT
+          e.id,
+          e.name,
+          e.day_of_week,
+          e.start_time,
+          e.end_time,
+          e.location,
+          e.max_members,
+          e.status
+
+        FROM extracurriculars e
+
+        WHERE e.id = ?
+          AND e.teacher_id = ?
+
+        LIMIT 1
+        `,
+          [extracurricularId, teacherId],
+        );
+
+        const extracurricular = (extraRows as any[])[0];
+
+        if (!extracurricular) {
+          set.status = 404;
+
+          return {
+            error:
+              "Ekstrakurikuler tidak ditemukan atau bukan tanggung jawab Anda",
+          };
+        }
+
+        const [members] = await db.query(
+          `
+        SELECT
+          em.id,
+          em.student_id,
+          em.join_date,
+          em.status,
+
+          s.nis,
+          s.nama AS student_name,
+
+          c.nama AS kelas_nama
+
+        FROM extracurricular_members em
+
+        INNER JOIN students s
+          ON s.id = em.student_id
+
+        LEFT JOIN classes c
+          ON c.id = s.kelas_id
+
+        WHERE em.extracurricular_id = ?
+
+        ORDER BY
+          CASE
+            WHEN em.status = 'aktif' THEN 0
+            ELSE 1
+          END,
+          s.nama ASC
+        `,
+          [extracurricularId],
+        );
+
+        return {
+          ok: true,
+          data: extracurricular,
+          members,
+        };
+      } catch (err: any) {
+        console.error(
+          "GET /api/public/extracurriculars/:id/members-guru error:",
+          err,
+        );
+
+        set.status = 500;
+
+        return {
+          error: err?.message || "Gagal memuat anggota ekstrakurikuler",
+        };
+      }
+    },
+  )
+
   /* =====================
    STUDENTS (SISWA)
    ===================== */

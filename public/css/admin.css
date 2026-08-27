@@ -111,10 +111,12 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.5rem;
   margin-bottom: 1rem;
+  align-items: start;
 }
 
 .form-grid input,
 .form-grid select,
+.form-grid textarea,
 .form-grid button {
   padding: 0.5rem;
 }
@@ -124,6 +126,116 @@ main {
   color: #fff;
   border: none;
   cursor: pointer;
+}
+
+/* label shown above every input/select/textarea inside a form */
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #374151;
+  width: 100%;
+}
+
+.field-label input,
+.field-label select,
+.field-label textarea {
+  font-weight: normal;
+  width: 100%;
+}
+
+/* =========================================================
+   Tombol sekunder ("Batal", "Kembali", dsb).
+   Dipakai di seluruh halaman admin (form modal, halaman detail).
+   Dulu hanya terdefinisi di dalam scope #page-penjadwalan sehingga
+   tombol yang sama di halaman lain tampil default browser.
+========================================================= */
+.ghost,
+.btn-tambah-data.ghost {
+  background: transparent;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.ghost:hover {
+  background: #f1f5f9;
+  border-color: #9ca3af;
+}
+
+/* =========================================================
+   Generic "Tambah Data" popup modal
+   Used to wrap every data-entry form so it is hidden by
+   default and only appears as a popup on top of the page.
+========================================================= */
+.btn-tambah-data {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+.btn-tambah-data:hover {
+  background: #1d4ed8;
+}
+
+.form-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 1800;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.form-modal-box {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.form-modal-box .form-grid {
+  margin-bottom: 0;
+}
+
+.form-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.form-modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.form-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0 4px;
+}
+.form-modal-close:hover {
+  color: #111;
 }
 
 /* TABLE */
@@ -205,21 +317,21 @@ th {
   background: transparent; /* keep admin background */
 }
 
-/* layout container so look like index.html */
+/* layout container - full width, selaras dengan halaman admin lain
+   (tidak lagi dibatasi 980px & dipusatkan seperti index.html standalone) */
 #page-penjadwalan .sched-root.container {
-  max-width: 980px;
-  min-width: min-content;
-  margin: 28px auto;
-  padding: 0 16px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-/* reuse card styles for scheduler area */
+/* reuse card styles for scheduler area - diselaraskan dengan .card global */
 #page-penjadwalan .sched-root .card {
   min-width: min-content;
   background: white;
-  border-radius: 10px;
-  padding: 18px;
-  box-shadow: 0 4px 18px rgba(16, 24, 40, 0.06);
+  border-radius: 6px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* card-1, card-table, toolbar */
@@ -245,17 +357,14 @@ th {
 #page-penjadwalan .sched-root button.primary {
   background: var(--accent);
   color: white;
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
   border: 0;
+  font-weight: 600;
   cursor: pointer;
 }
-#page-penjadwalan .sched-root button.ghost {
-  background: transparent;
-  border: 1px solid #e6e9ef;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
+#page-penjadwalan .sched-root button.primary:hover {
+  background: #1d4ed8;
 }
 
 /* empty state */
@@ -277,13 +386,13 @@ th {
 }
 #page-penjadwalan .sched-root .schedule-table th,
 #page-penjadwalan .sched-root .schedule-table td {
-  border: 1px solid #e5e7eb;
-  padding: 8px;
+  border: 1px solid #ddd;
+  padding: 0.5rem;
   text-align: center;
   font-size: 13px;
 }
 #page-penjadwalan .sched-root .schedule-table th {
-  background: #f8fafc;
+  background: #f1f5f9;
   font-weight: 600;
 }
 #page-penjadwalan .sched-root .class-title {
@@ -400,7 +509,7 @@ th {
 }
 #page-penjadwalan .sched-root #sched_scheduleDetail .schedule-table th,
 #page-penjadwalan .sched-root #sched_scheduleDetail .schedule-table td {
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   padding: 6px;
   text-align: center;
   font-size: 13px;
@@ -415,6 +524,218 @@ th {
   border: 0;
   border-top: 1px solid #eef2f7;
   margin: 12px 0;
+}
+
+/* =========================================================
+   SARANA & PRASARANA
+========================================================= */
+
+.facility-stats {
+  margin-bottom: 1.25rem;
+}
+
+.facility-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.facility-filters input,
+.facility-filters select {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.action-buttons button {
+  padding: 0.4rem 0.65rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.btn-detail {
+  background: #0ea5e9;
+  color: #fff;
+}
+
+.btn-edit {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.btn-delete {
+  background: #dc2626;
+  color: #fff;
+}
+
+.detail-card {
+  background: #fff;
+  padding: 1.25rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-card table {
+  margin-top: 0;
+}
+
+.detail-card th {
+  width: 220px;
+}
+
+.maintenance-empty,
+.table-empty {
+  text-align: center;
+  padding: 1rem;
+  color: #6b7280;
+}
+/* ========================================================= MODAL FIX ========================================================= */
+body.modal-open {
+  overflow: hidden;
+}
+.form-modal-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  z-index: 1800;
+}
+.form-modal-overlay .form-modal-box {
+  position: relative;
+  z-index: 1801;
+  pointer-events: auto;
+}
+.form-modal-overlay button,
+.form-modal-overlay input,
+.form-modal-overlay select,
+.form-modal-overlay textarea {
+  pointer-events: auto;
+}
+.form-modal-close {
+  position: relative;
+  z-index: 1802;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* ========================================================= LOADING BUTTON - PENJADWALAN ========================================================= */
+.schedule-generate-loading {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 190px;
+  cursor: wait !important;
+}
+.schedule-generate-loading:disabled {
+  opacity: 0.75;
+  cursor: wait !important;
+}
+.schedule-loading-spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: scheduleSpinner 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes scheduleSpinner {
+  to {
+    transform: rotate(360deg);
+  }
+} /* ========================================================= OVERLAY LOADING PENJADWALAN ========================================================= */
+.schedule-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  padding: 20px;
+  box-sizing: border-box;
+}
+.schedule-loading-overlay.show {
+  display: flex;
+}
+.schedule-loading-card {
+  width: min(430px, 100%);
+  padding: 28px 30px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+.schedule-loading-spinner-large {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 18px;
+  border: 5px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: scheduleSpinner 0.8s linear infinite;
+}
+.schedule-loading-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.schedule-loading-text {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: #64748b;
+}
+.schedule-loading-progress {
+  width: 100%;
+  height: 6px;
+  margin-top: 20px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+.schedule-loading-progress-bar {
+  width: 35%;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  animation: scheduleProgress 1.4s ease-in-out infinite;
+}
+@keyframes scheduleProgress {
+  0% {
+    transform: translateX(-130%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
 }
 
 /* RESPONSIVE for scheduler block */

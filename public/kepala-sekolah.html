@@ -14,10 +14,19 @@
         <h2 class="logo">SMS Kepala Sekolah</h2>
         <nav>
           <button data-page="dashboard">Dashboard</button>
+          <p class="logo">DATA MASTER</p>
+          <button data-page="guru">Data Guru</button>
+          <button data-page="staff">Data Staff</button>
+          <button data-page="siswa">Data Siswa</button>
+          <p class="logo">SARANA & PRASARANA</p>
+          <button data-page="sarana">Sarana</button>
+          <button data-page="prasarana">Prasarana</button>
+          <p class="logo">AKADEMIK</p>
           <button data-page="rekap">Rekap Kehadiran</button>
           <button data-page="jadwal">Jadwal Pelajaran</button>
-          <button data-page="guru">Data Guru</button>
-          <button data-page="siswa">Data Siswa</button>
+          <p class="logo">EKSTRAKURIKULER</p>
+          <button data-page="ekstrakurikuler">Ekstrakurikuler</button>
+          <p class="logo">AKUN</p>
           <button data-page="password">Ganti Password</button>
         </nav>
       </aside>
@@ -228,6 +237,62 @@
               </table>
             </div>
           </section>
+
+          <!-- STAFF -->
+          <section id="page-staff" class="page">
+            <h1>Data Staff</h1>
+
+            <div
+              class="table-controls"
+              style="
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                align-items: center;
+                margin: 8px 0;
+              "
+            >
+              <input
+                id="staffSearchNama"
+                placeholder="Cari nama..."
+                style="
+                  padding: 6px 8px;
+                  border-radius: 8px;
+                  border: 1px solid #ddd;
+                "
+              />
+              <select id="staffFilterJabatan" style="padding: 6px 8px">
+                <option value="">-- Semua Jabatan --</option>
+              </select>
+              <select id="staffFilterStatus" style="padding: 6px 8px">
+                <option value="">-- Semua Status --</option>
+                <option value="aktif">Aktif</option>
+                <option value="nonaktif">Nonaktif</option>
+              </select>
+            </div>
+
+            <table id="staffTable">
+              <thead>
+                <tr>
+                  <th>NIK</th>
+                  <th>Nama Lengkap</th>
+                  <th>Jabatan</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </section>
+
+          <!-- STAFF DETAIL -->
+          <section id="page-staff-detail" class="page">
+            <button type="button" id="staffDetailBack" class="ghost">
+              ← Kembali ke Data Staff
+            </button>
+            <div id="staffDetailContent" style="margin-top: 12px"></div>
+          </section>
+
           <!-- SISWA -->
           <section id="page-siswa" class="page">
             <h1>Data Siswa</h1>
@@ -272,6 +337,353 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </section>
+
+          <!-- =====================================================
+     SARANA - READ ONLY
+===================================================== -->
+          <section id="page-sarana" class="page">
+            <h1>Data Sarana</h1>
+
+            <div class="cards facility-stats">
+              <div class="card">
+                <h3>Total Sarana</h3>
+                <p id="kepalaSaranaStatTotal">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Kondisi Baik</h3>
+                <p id="kepalaSaranaStatBaik">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Rusak Ringan</h3>
+                <p id="kepalaSaranaStatRusakRingan">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Rusak Berat</h3>
+                <p id="kepalaSaranaStatRusakBerat">0</p>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Sarana</strong>
+                  <div class="hint">Pencarian dan filter data sarana</div>
+                </div>
+              </div>
+
+              <div class="facility-filters">
+                <input
+                  id="kepalaSaranaSearch"
+                  type="text"
+                  placeholder="Cari nama atau kode sarana..."
+                />
+
+                <select id="kepalaSaranaFilterCategory">
+                  <option value="">Semua Kategori</option>
+                </select>
+
+                <select id="kepalaSaranaFilterCondition">
+                  <option value="">Semua Kondisi</option>
+                  <option value="baik">Baik</option>
+                  <option value="rusak_ringan">Rusak Ringan</option>
+                  <option value="rusak_berat">Rusak Berat</option>
+                </select>
+
+                <select id="kepalaSaranaFilterStatus">
+                  <option value="">Semua Status</option>
+                  <option value="aktif">Aktif</option>
+                  <option value="nonaktif">Nonaktif</option>
+                </select>
+
+                <select id="kepalaSaranaFilterLocation">
+                  <option value="">Semua Lokasi</option>
+                </select>
+              </div>
+
+              <div class="table-wrapper">
+                <table id="kepalaSaranaTable">
+                  <thead>
+                    <tr>
+                      <th>Kode</th>
+                      <th>Nama</th>
+                      <th>Kategori</th>
+                      <th>Jumlah</th>
+                      <th>Kondisi</th>
+                      <th>Lokasi</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr>
+                      <td colspan="8" class="table-loading-cell">Memuat...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- =====================================================
+     DETAIL SARANA
+===================================================== -->
+          <section id="page-sarana-detail" class="page">
+            <button id="kepalaSaranaDetailBack" type="button" class="ghost">
+              ← Kembali ke Data Sarana
+            </button>
+
+            <h1>Detail Sarana</h1>
+
+            <div id="kepalaSaranaDetailContent"></div>
+
+            <div class="card" style="margin-top: 20px">
+              <div class="card-1">
+                <div>
+                  <strong>Riwayat Pemeliharaan</strong>
+                  <div class="hint">Riwayat pemeliharaan sarana</div>
+                </div>
+              </div>
+
+              <div class="table-wrapper">
+                <table id="kepalaSaranaMaintenanceTable">
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th>Masalah</th>
+                      <th>Tindakan</th>
+                      <th>Biaya</th>
+                      <th>Status</th>
+                      <th>Catatan</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr>
+                      <td colspan="6" class="table-loading-cell">Memuat...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- =====================================================
+     PRASARANA - READ ONLY
+===================================================== -->
+          <section id="page-prasarana" class="page">
+            <h1>Data Prasarana</h1>
+
+            <div class="cards facility-stats">
+              <div class="card">
+                <h3>Total Prasarana</h3>
+                <p id="kepalaPrasaranaStatTotal">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Kondisi Baik</h3>
+                <p id="kepalaPrasaranaStatBaik">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Rusak Ringan</h3>
+                <p id="kepalaPrasaranaStatRusakRingan">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Rusak Berat</h3>
+                <p id="kepalaPrasaranaStatRusakBerat">0</p>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Prasarana</strong>
+                  <div class="hint">Pencarian dan filter data prasarana</div>
+                </div>
+              </div>
+
+              <div class="facility-filters">
+                <input
+                  id="kepalaPrasaranaSearch"
+                  type="text"
+                  placeholder="Cari nama atau kode prasarana..."
+                />
+
+                <select id="kepalaPrasaranaFilterType">
+                  <option value="">Semua Jenis</option>
+                </select>
+
+                <select id="kepalaPrasaranaFilterCondition">
+                  <option value="">Semua Kondisi</option>
+                  <option value="baik">Baik</option>
+                  <option value="rusak_ringan">Rusak Ringan</option>
+                  <option value="rusak_berat">Rusak Berat</option>
+                </select>
+
+                <select id="kepalaPrasaranaFilterStatus">
+                  <option value="">Semua Status</option>
+                  <option value="aktif">Aktif</option>
+                  <option value="nonaktif">Nonaktif</option>
+                </select>
+              </div>
+
+              <div class="table-wrapper">
+                <table id="kepalaPrasaranaTable">
+                  <thead>
+                    <tr>
+                      <th>Kode</th>
+                      <th>Nama</th>
+                      <th>Jenis</th>
+                      <th>Kapasitas</th>
+                      <th>Luas</th>
+                      <th>Lokasi</th>
+                      <th>Kondisi</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr>
+                      <td colspan="9" class="table-loading-cell">Memuat...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- =====================================================
+     DETAIL PRASARANA
+===================================================== -->
+          <section id="page-prasarana-detail" class="page">
+            <button id="kepalaPrasaranaDetailBack" type="button" class="ghost">
+              ← Kembali ke Data Prasarana
+            </button>
+
+            <h1>Detail Prasarana</h1>
+
+            <div id="kepalaPrasaranaDetailContent"></div>
+          </section>
+
+          <!-- =====================================================
+     EKSTRAKURIKULER - KEPALA SEKOLAH
+     READ ONLY
+===================================================== -->
+
+          <section id="page-ekstrakurikuler" class="page">
+            <h1>Data Ekstrakurikuler</h1>
+
+            <!-- STATISTIK -->
+            <div class="cards">
+              <div class="card">
+                <h3>Total Ekstrakurikuler</h3>
+                <p id="kepalaEkstraStatTotal">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Ekstrakurikuler Aktif</h3>
+                <p id="kepalaEkstraStatAktif">0</p>
+              </div>
+
+              <div class="card">
+                <h3>Total Peserta</h3>
+                <p id="kepalaEkstraStatPeserta">0</p>
+              </div>
+            </div>
+
+            <!-- TABEL EKSTRAKURIKULER -->
+            <div class="card" style="margin-top: 20px">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Ekstrakurikuler</strong>
+
+                  <div class="hint">
+                    Data ekstrakurikuler sekolah — tampilan lihat saja
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-wrapper">
+                <table id="kepalaEkstraTable">
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>Nama Ekstrakurikuler</th>
+                      <th>Pembina</th>
+                      <th>Hari</th>
+                      <th>Waktu</th>
+                      <th>Lokasi</th>
+                      <th>Peserta</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr>
+                      <td colspan="9" class="table-loading-cell">Memuat...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- =====================================================
+     DETAIL EKSTRAKURIKULER - KEPALA SEKOLAH
+===================================================== -->
+
+          <section id="page-ekstrakurikuler-detail" class="page">
+            <button id="kepalaEkstraDetailBack" type="button" class="ghost">
+              ← Kembali ke Ekstrakurikuler
+            </button>
+
+            <h1>Detail Ekstrakurikuler</h1>
+
+            <!-- DETAIL -->
+            <div id="kepalaEkstraDetailContent" class="card">Memuat...</div>
+
+            <!-- ANGGOTA -->
+            <div class="card" style="margin-top: 20px">
+              <div class="card-1">
+                <div>
+                  <strong>Daftar Anggota</strong>
+
+                  <div class="hint">
+                    Daftar seluruh siswa yang pernah terdaftar pada
+                    ekstrakurikuler
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-wrapper">
+                <table id="kepalaEkstraMemberTable">
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>NIS</th>
+                      <th>Nama Siswa</th>
+                      <th>Kelas</th>
+                      <th>Tanggal Bergabung</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr>
+                      <td colspan="6" class="table-loading-cell">Memuat...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
 

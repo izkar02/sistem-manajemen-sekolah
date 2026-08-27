@@ -82,21 +82,36 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       if (payload.role === "guru") {
         const [rows] = await db.query(
           `SELECT 
-             t.id AS teacher_id,
-             t.nip,
-             t.jk,
-             t.agama,
-             t.hp,
-             t.email,
-             t.keterangan,
-             t.teacher_type,
-             ts.subject_id,
-             s.kode,
-             s.nama
-           FROM teachers t
-           LEFT JOIN teacher_subjects ts ON ts.teacher_id = t.id
-           LEFT JOIN subjects s ON s.id = ts.subject_id
-           WHERE t.user_id = ?`,
+     t.id AS teacher_id,
+     t.nip,
+     t.jk,
+     t.agama,
+     t.hp,
+     t.email,
+     t.keterangan,
+     t.teacher_type,
+
+     c.id AS kelas_id,
+     c.nama AS kelas_nama,
+     c.tingkat AS kelas_tingkat,
+     c.section AS kelas_section,
+
+     ts.subject_id,
+     s.kode,
+     s.nama
+
+   FROM teachers t
+
+   LEFT JOIN classes c
+     ON c.wali_id = t.id
+
+   LEFT JOIN teacher_subjects ts
+     ON ts.teacher_id = t.id
+
+   LEFT JOIN subjects s
+     ON s.id = ts.subject_id
+
+   WHERE t.user_id = ?`,
           [payload.id],
         );
 
@@ -110,6 +125,12 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
           result.email = data[0].email;
           result.keterangan = data[0].keterangan;
           result.teacher_type = data[0].teacher_type;
+          result.kelas_id = data[0].kelas_id ?? null;
+          result.kelas_nama =
+            data[0].kelas_nama ||
+            (data[0].kelas_tingkat && data[0].kelas_section
+              ? `${data[0].kelas_tingkat}.${data[0].kelas_section}`
+              : null);
           result.subjects = data
             .filter((r) => r.subject_id !== null)
             .map((r) => ({
@@ -128,36 +149,6 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       return { error: err?.message ?? "Internal Server Error" };
     }
   })
-
-  /* ME (LAMA)
-  .get("/me", ({ headers, set }) => {
-    try {
-      const cookie = (headers.cookie as string) ?? "";
-      const m = cookie.match(/token=([^;]+)/);
-      let token = m ? m[1] : null;
-
-      if (!token && headers.authorization) {
-        token = (headers.authorization as string).replace("Bearer ", "");
-      }
-
-      if (!token) {
-        set.status = 401;
-        return { error: "Unauthorized" };
-      }
-
-      const payload = verifyToken(token);
-      if (!payload) {
-        set.status = 401;
-        return { error: "Invalid token" };
-      }
-
-      return { ok: true, user: payload };
-    } catch (err: any) {
-      console.error("ME ERROR:", err);
-      set.status = 500;
-      return { error: err?.message ?? "Internal Server Error" };
-      }
-      }) */
 
   // GANTI PASSWORD (BARU)
   // Berlaku untuk siapa pun yang sedang login (role apa saja), karena

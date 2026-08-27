@@ -20,8 +20,7 @@ async function me() {
     return (window.location.href = "/login.html");
   }
 
-  document.getElementById("info").textContent =
-    `Halo, ${user.displayName || user.username}`;
+  document.getElementById("info").textContent = `Halo, ${user.displayName}`;
 }
 
 /* SIDEBAR */
@@ -58,6 +57,27 @@ document.querySelectorAll(".sidebar button").forEach((btn) => {
         populateWaliGuru();
         populateKelasFilter();
       }
+      if (page === "staff") {
+        loadStaff();
+        populateStaffJabatanFilter();
+      }
+      if (page === "sarana") {
+        loadSarana();
+        loadSaranaStats();
+        populateSaranaCategories();
+        populateSaranaLocations();
+      }
+
+      if (page === "prasarana") {
+        loadPrasarana();
+        loadPrasaranaStats();
+        populatePrasaranaTypes();
+      }
+      if (page === "ekstrakurikuler") {
+        loadEkstrakurikulerStats();
+        loadEkstrakurikuler();
+        populateEkstrakurikulerTeachers();
+      }
       if (page === "penjadwalan") {
         // ensure sched-specific population runs when opening page
         populateWaliGuru(); // just ensure teacher list available
@@ -75,6 +95,181 @@ document.querySelectorAll(".sidebar button").forEach((btn) => {
 document.getElementById("goSchedule").onclick = () =>
   (window.location.href = "/index.html");
 
+/* ========================================================= 
+GENERIC FORM MODAL HELPERS
+ ========================================================= 
+ Satu sistem untuk: 
+ - tombol X 
+ - tombol Batal 
+ - klik area luar modal 
+ - tombol ESC 
+ ========================================================= */
+function openFormModal(overlayId) {
+  const overlay = document.getElementById(overlayId);
+  if (!overlay) {
+    console.warn("Modal tidak ditemukan:", overlayId);
+    return;
+  }
+  overlay.style.display = "flex";
+  document.body.classList.add("modal-open");
+}
+function closeFormModal(overlayId) {
+  const overlay = document.getElementById(overlayId);
+  if (!overlay) {
+    console.warn("Modal tidak ditemukan:", overlayId);
+    return;
+  }
+  const form = overlay.querySelector("form");
+  if (form) {
+    try {
+      form.reset();
+    } catch (err) {
+      console.warn("Gagal reset form:", err);
+    }
+    delete form.dataset.editId;
+  }
+  overlay.style.display = "none";
+  document.body.classList.remove("modal-open");
+}
+/* * Tutup modal dengan klik area gelap. * Event delegation dipakai agar tetap bekerja * walaupun isi modal berubah/dibuat ulang. */ document.addEventListener(
+  "click",
+  (e) => {
+    const overlay = e.target.closest(".form-modal-overlay");
+    if (!overlay) return;
+    /* * Hanya tutup jika yang diklik adalah overlay, * bukan isi/kotak form. */ if (
+      e.target === overlay
+    ) {
+      closeFormModal(overlay.id);
+    }
+  },
+);
+/* * Semua tombol yang memiliki: * * data-close-modal="guruForm" * * akan mencari form tersebut dan modalnya. * * Jika pola ID standar: * guruForm * guruFormModalOverlay * * maka otomatis ditemukan. * * Untuk modal yang nama wrapper-nya berbeda, * gunakan data-close-overlay. */ document.addEventListener(
+  "click",
+  (e) => {
+    const button = e.target.closest("[data-close-modal]");
+    if (!button) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const formId = button.dataset.closeModal;
+    if (!formId) return;
+    /* * Cari modal berdasarkan form. * Ini lebih aman daripada hanya mengandalkan * nama ID wrapper. */ const form =
+      document.getElementById(formId);
+    if (form) {
+      const overlay = form.closest(".form-modal-overlay");
+      if (overlay) {
+        closeFormModal(overlay.id);
+        return;
+      }
+    }
+    /* * Fallback untuk pola: * guruForm -> guruFormModalOverlay */ const standardOverlayId = `${formId}ModalOverlay`;
+    const standardOverlay = document.getElementById(standardOverlayId);
+    if (standardOverlay) {
+      closeFormModal(standardOverlay.id);
+      return;
+    }
+    /* * Fallback tambahan untuk pola lama: * guruForm -> guruFormModalOverlay */ const oldOverlayId = `${formId}FormModalOverlay`;
+    const oldOverlay = document.getElementById(oldOverlayId);
+    if (oldOverlay) {
+      closeFormModal(oldOverlay.id);
+      return;
+    }
+    console.warn("Tidak menemukan modal untuk data-close-modal:", formId);
+  },
+);
+/* * Untuk modal dengan wrapper ID yang tidak mengikuti * pola nama form, gunakan: * * data-close-overlay="facilityMaintenanceFormWrapper" */ document.addEventListener(
+  "click",
+  (e) => {
+    const button = e.target.closest("[data-close-overlay]");
+    if (!button) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const overlayId = button.dataset.closeOverlay;
+    if (!overlayId) return;
+    closeFormModal(overlayId);
+  },
+);
+/* * ESC = tutup modal yang sedang terbuka. */ document.addEventListener(
+  "keydown",
+  (e) => {
+    if (e.key !== "Escape") return;
+    const openedModals = document.querySelectorAll(".form-modal-overlay");
+    openedModals.forEach((overlay) => {
+      const style = window.getComputedStyle(overlay);
+      if (style.display !== "none" && style.visibility !== "hidden") {
+        closeFormModal(overlay.id);
+      }
+    });
+  },
+);
+
+/* ---- GURU: tombol tambah ---- */
+document.getElementById("guruAddBtn")?.addEventListener("click", () => {
+  const f = document.getElementById("guruForm");
+  f.reset();
+  delete f.dataset.editId;
+  document.getElementById("guruFormModalTitle").textContent = "Tambah Guru";
+  openFormModal("guruFormModalOverlay");
+});
+
+/* ---- STAFF: tombol tambah ---- */
+document.getElementById("staffAddBtn")?.addEventListener("click", () => {
+  const f = document.getElementById("staffForm");
+  f.reset();
+  delete f.dataset.editId;
+  document.getElementById("staffFormModalTitle").textContent = "Tambah Staff";
+  openFormModal("staffFormModalOverlay");
+});
+
+/* ---- SISWA: tombol tambah ---- */
+document.getElementById("siswaAddBtn")?.addEventListener("click", () => {
+  const f = document.getElementById("siswaForm");
+  f.reset();
+  delete f.dataset.editId;
+  document.getElementById("siswaFormModalTitle").textContent = "Tambah Siswa";
+  openFormModal("siswaFormModalOverlay");
+});
+
+/* ---- KELAS: tombol tambah ---- */
+document.getElementById("kelasAddBtn")?.addEventListener("click", () => {
+  const f = document.getElementById("kelasForm");
+  f.reset();
+  delete f.dataset.editId;
+  document.getElementById("kelasFormModalTitle").textContent = "Tambah Kelas";
+  populateWaliGuru();
+  openFormModal("kelasFormModalOverlay");
+});
+
+/* ---- SARANA: tombol tambah ---- */
+document.getElementById("saranaAddBtn")?.addEventListener("click", () => {
+  const f = document.getElementById("saranaForm");
+  f.reset();
+  delete f.dataset.editId;
+  document.getElementById("saranaFormModalTitle").textContent = "Tambah Sarana";
+  populateSaranaCategories();
+  openFormModal("saranaFormModalOverlay");
+});
+
+/* ---- PRASARANA: tombol tambah ---- */
+document.getElementById("prasaranaAddBtn")?.addEventListener("click", () => {
+  const f = document.getElementById("prasaranaForm");
+  f.reset();
+  delete f.dataset.editId;
+  document.getElementById("prasaranaFormModalTitle").textContent =
+    "Tambah Prasarana";
+  openFormModal("prasaranaFormModalOverlay");
+});
+
+/* ---- EKSTRAKURIKULER: tombol tambah anggota ---- */
+document
+  .getElementById("ekstrakurikulerMemberAddBtn")
+  ?.addEventListener("click", () => {
+    const f = document.getElementById("ekstrakurikulerMemberForm");
+    f.reset();
+    const joinDate = document.getElementById("ekskulJoinDate");
+    if (joinDate) joinDate.value = new Date().toISOString().slice(0, 10);
+    openFormModal("ekstrakurikulerMemberFormModalOverlay");
+  });
+
 document.getElementById("logoutBtn").onclick = async () => {
   await fetch("/api/auth/logout", {
     method: "POST",
@@ -83,15 +278,246 @@ document.getElementById("logoutBtn").onclick = async () => {
   window.location.href = "/login.html";
 };
 
+document
+  .getElementById("addFacilityMaintenanceBtn")
+  ?.addEventListener("click", () => {
+    openFacilityMaintenanceCreateForm();
+  });
+
+document
+  .getElementById("facilityMaintenanceForm")
+  ?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    if (!currentFacilityDetailId) {
+      errorAlert("Sarana belum dipilih");
+      return;
+    }
+
+    const form = e.target;
+
+    const body = {
+      maintenance_date: form.maintenance_date.value,
+      issue_description: form.issue_description.value.trim(),
+      action_taken: form.action_taken.value.trim(),
+      cost: form.cost.value || 0,
+      status: form.status.value,
+      notes: form.notes.value.trim(),
+    };
+
+    const isEdit = !!form.dataset.editId;
+
+    const url = isEdit
+      ? `/api/admin/facility-maintenance/${form.dataset.editId}`
+      : `/api/admin/facilities/${currentFacilityDetailId}/maintenance`;
+
+    const method = isEdit ? "PUT" : "POST";
+
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
+    try {
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.ok) {
+        errorAlert(json.error || "Gagal menyimpan riwayat pemeliharaan");
+        return;
+      }
+
+      successAlert(json.message || "Riwayat pemeliharaan berhasil disimpan");
+
+      form.reset();
+      delete form.dataset.editId;
+
+      document.getElementById("facilityMaintenanceFormWrapper").style.display =
+        "none";
+
+      await loadFacilityMaintenance(currentFacilityDetailId);
+    } catch (err) {
+      console.error("facilityMaintenanceForm submit:", err);
+      errorAlert("Terjadi kesalahan saat menyimpan riwayat pemeliharaan");
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+    }
+  });
+
 /* DASHBOARD */
-async function loadDashboard() {
-  const res = await fetch("/api/admin/dashboard", { credentials: "include" });
-  if (!res.ok) return;
-  const d = await res.json();
-  document.getElementById("count-guru").textContent = d.guru;
-  document.getElementById("count-siswa").textContent = d.siswa;
-  document.getElementById("count-kelas").textContent = d.kelas;
+
+// Set nilai kartu ke "…" (loading) supaya beda dari "0" (memang kosong)
+// dan dari error (ditandai lewat #dashboard-error).
+function setDashboardCardsLoading() {
+  const ids = [
+    "count-guru",
+    "count-siswa",
+    "count-kelas",
+    "count-staff",
+    "count-sarana",
+    "count-prasarana",
+    "count-ekskul",
+    "count-jadwal",
+  ];
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "…";
+  });
+  const pesertaEl = document.getElementById("count-ekskul-peserta");
+  if (pesertaEl) pesertaEl.textContent = "…";
 }
+
+function showDashboardError(show, message) {
+  const box = document.getElementById("dashboard-error");
+  if (!box) return;
+  box.style.display = show ? "block" : "none";
+  if (show) {
+    box.textContent = message || "Gagal memuat data dashboard. Coba lagi.";
+  }
+}
+
+function renderEkskulHampirPenuh(list) {
+  const box = document.getElementById("insight-ekskul-penuh");
+  if (!box) return;
+  if (!list || !list.length) {
+    box.innerHTML = `<p class="insight-empty">Tidak ada ekstrakurikuler yang mendekati kapasitas.</p>`;
+    return;
+  }
+  box.innerHTML = list
+    .map((e) => {
+      const pct = e.max_members
+        ? Math.round((e.active_members / e.max_members) * 100)
+        : 0;
+      return `
+        <div class="insight-item">
+          <span>${e.name}</span>
+          <span class="insight-badge">${e.active_members}/${e.max_members} (${pct}%)</span>
+        </div>`;
+    })
+    .join("");
+}
+
+function renderGuruBelumLengkap(list) {
+  const box = document.getElementById("insight-guru-belum-lengkap");
+  if (!box) return;
+  if (!list || !list.length) {
+    box.innerHTML = `<p class="insight-empty">Semua guru sudah punya mapel/kelas diampu.</p>`;
+    return;
+  }
+  box.innerHTML = list
+    .map(
+      (g) => `
+        <div class="insight-item">
+          <span>${g.nama}</span>
+          <span class="insight-badge insight-badge-warn">${g.issue}</span>
+        </div>`,
+    )
+    .join("");
+}
+
+function renderSiswaBelumAkun(data) {
+  const box = document.getElementById("insight-siswa-belum-akun");
+  if (!box) return;
+  const count = data?.count || 0;
+  if (!count) {
+    box.innerHTML = `<p class="insight-empty">Semua siswa sudah punya akun login ter-link.</p>`;
+    return;
+  }
+  const sampleHtml = (data.sample || [])
+    .map(
+      (s) => `
+        <div class="insight-item">
+          <span>${s.nama}</span>
+          <span class="insight-badge insight-badge-warn">NIS ${s.nis || "-"}</span>
+        </div>`,
+    )
+    .join("");
+  const more =
+    count > (data.sample || []).length
+      ? `<p class="insight-more">+${count - data.sample.length} siswa lainnya</p>`
+      : "";
+  box.innerHTML = `
+    <p class="insight-summary">${count} siswa belum punya akun login.</p>
+    ${sampleHtml}
+    ${more}
+  `;
+}
+
+async function loadDashboard() {
+  showDashboardError(false);
+  setDashboardCardsLoading();
+
+  let res;
+  try {
+    res = await fetch("/api/admin/dashboard", { credentials: "include" });
+  } catch (err) {
+    console.error("loadDashboard fetch error:", err);
+    showDashboardError(true, "Tidak bisa terhubung ke server.");
+    return;
+  }
+
+  if (!res.ok) {
+    let msg = `Gagal memuat data dashboard (HTTP ${res.status})`;
+    try {
+      const errJson = await res.json();
+      if (errJson?.error) msg = errJson.error;
+    } catch {
+      // respons bukan JSON, pakai pesan default di atas
+    }
+    showDashboardError(true, msg);
+    errorAlert(msg, "Gagal Memuat Dashboard");
+    return;
+  }
+
+  const d = await res.json();
+
+  document.getElementById("count-guru").textContent = d.guru ?? 0;
+  document.getElementById("count-siswa").textContent = d.siswa ?? 0;
+  document.getElementById("count-kelas").textContent = d.kelas ?? 0;
+  document.getElementById("count-staff").textContent = d.staff ?? 0;
+  document.getElementById("count-sarana").textContent = d.sarana ?? 0;
+  document.getElementById("count-prasarana").textContent = d.prasarana ?? 0;
+
+  const ekskul = d.ekstrakurikuler || {};
+  document.getElementById("count-ekskul").textContent = ekskul.aktif ?? 0;
+  const pesertaEl = document.getElementById("count-ekskul-peserta");
+  if (pesertaEl) {
+    pesertaEl.textContent = `${ekskul.total_peserta ?? 0} peserta aktif`;
+  }
+
+  document.getElementById("count-jadwal").textContent = d.jadwal_generated ?? 0;
+
+  const insights = d.insights || {};
+  renderEkskulHampirPenuh(insights.ekskul_hampir_penuh);
+  renderGuruBelumLengkap(insights.guru_belum_lengkap);
+  renderSiswaBelumAkun(insights.siswa_belum_akun);
+}
+
+/* Kartu dashboard yang clickable -> pindah ke halaman terkait, memakai
+   tombol sidebar yang sudah ada supaya logic switch-page tetap satu jalur. */
+document.querySelectorAll(".card[data-page]").forEach((card) => {
+  card.style.cursor = "pointer";
+  card.addEventListener("click", () => {
+    const page = card.dataset.page;
+    const btn = document.querySelector(`.sidebar button[data-page="${page}"]`);
+    if (btn) btn.click();
+  });
+});
+
+document.getElementById("dashboard-retry")?.addEventListener("click", () => {
+  loadDashboard();
+});
 
 /* GURU */
 async function loadGuru() {
@@ -177,6 +603,8 @@ async function loadGuru() {
       f.teacher_type.value = g.teacher_type || "kelas";
       f.keterangan.value = g.keterangan || "";
       f.dataset.editId = g.id;
+      document.getElementById("guruFormModalTitle").textContent = "Edit Guru";
+      openFormModal("guruFormModalOverlay");
     };
   });
 
@@ -244,6 +672,16 @@ async function openMapelModal(teacherId, teacherNama) {
 document.getElementById("guruForm").onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;
+
+  // Validasi nomor HP Indonesia
+  const hp = f.hp.value.trim();
+
+  if (!/^(08|628)[0-9]{8,13}$/.test(hp)) {
+    return errorAlert(
+      "Nomor HP tidak valid. Gunakan format 08xxxxxxxxxx atau 628xxxxxxxxxx",
+    );
+  }
+
   const body = {
     nama: f.nama.value,
     nip: f.nip.value,
@@ -268,8 +706,227 @@ document.getElementById("guruForm").onsubmit = async (e) => {
   });
   delete f.dataset.editId;
   f.reset();
+  closeFormModal("guruFormModalOverlay");
   loadGuru();
 };
+
+/* STAFF */
+async function loadStaff() {
+  const params = new URLSearchParams();
+  const nama = document.getElementById("staffSearchNama")?.value.trim();
+  const jabatan = document.getElementById("staffFilterJabatan")?.value;
+  const status = document.getElementById("staffFilterStatus")?.value;
+  if (nama) params.set("nama", nama);
+  if (jabatan) params.set("jabatan", jabatan);
+  if (status) params.set("status", status);
+
+  const res = await fetch("/api/admin/staff?" + params.toString(), {
+    credentials: "include",
+  });
+  if (!res.ok) return errorAlert("Gagal memuat data staff");
+  const d = await res.json();
+
+  const tbody = document.querySelector("#staffTable tbody");
+  tbody.innerHTML = "";
+  d.data.forEach((s) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s.nik}</td>
+      <td>${s.nama_lengkap}</td>
+      <td>${s.jabatan}</td>
+      <td>${s.status === "aktif" ? "Aktif" : "Nonaktif"}</td>
+      <td>
+        <button class="edit-staff" data-id="${s.id}">Edit</button>
+        <button class="detail-staff" data-id="${s.id}">Detail</button>
+        <button class="delete-staff" data-id="${s.id}">Hapus</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.querySelectorAll(".edit-staff").forEach((b) => {
+    b.onclick = async () => {
+      const r = await fetch("/api/admin/staff/" + b.dataset.id, {
+        credentials: "include",
+      });
+      const d = await r.json();
+      const s = d.data;
+      const f = document.getElementById("staffForm");
+      f.nik.value = s.nik;
+      f.nama_lengkap.value = s.nama_lengkap;
+      f.jenis_kelamin.value = s.jenis_kelamin;
+      f.agama.value = s.agama || "";
+      f.tempat_lahir.value = s.tempat_lahir || "";
+      f.tanggal_lahir.value = s.tanggal_lahir
+        ? s.tanggal_lahir.substring(0, 10)
+        : "";
+      f.alamat.value = s.alamat || "";
+      f.no_hp.value = s.no_hp || "";
+      f.email.value = s.email || "";
+      f.jabatan.value = s.jabatan;
+      f.status_kepegawaian.value = s.status_kepegawaian || "";
+      f.tanggal_mulai.value = s.tanggal_mulai
+        ? s.tanggal_mulai.substring(0, 10)
+        : "";
+      f.status.value = s.status || "aktif";
+      f.keterangan.value = s.keterangan || "";
+      f.dataset.editId = s.id;
+      document.getElementById("staffFormModalTitle").textContent = "Edit Staff";
+      openFormModal("staffFormModalOverlay");
+    };
+  });
+
+  document.querySelectorAll(".detail-staff").forEach((b) => {
+    b.onclick = () => showStaffDetail(b.dataset.id);
+  });
+
+  document.querySelectorAll(".delete-staff").forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.id;
+
+      const yakin = confirm(
+        "Apakah Anda yakin ingin menghapus data staff ini?",
+      );
+
+      if (!yakin) return;
+
+      try {
+        const res = await fetch("/api/admin/staff/" + id, {
+          method: "DELETE",
+          credentials: "include",
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          alert(result.error || "Gagal menghapus data staff");
+          return;
+        }
+
+        alert(result.message || "Data staff berhasil dihapus");
+
+        // Muat ulang tabel
+        loadStaff();
+      } catch (err) {
+        console.error("delete staff error:", err);
+        alert("Terjadi kesalahan saat menghapus data staff");
+      }
+    };
+  });
+}
+
+async function populateStaffJabatanFilter() {
+  const select = document.getElementById("staffFilterJabatan");
+  if (!select) return;
+  const res = await fetch("/api/admin/staff/jabatan", {
+    credentials: "include",
+  });
+  if (!res.ok) return;
+  const d = await res.json();
+  const current = select.value;
+  select.innerHTML = `<option value="">-- Semua Jabatan --</option>`;
+  (d.data || []).forEach((j) => {
+    const opt = document.createElement("option");
+    opt.value = j;
+    opt.textContent = j;
+    select.appendChild(opt);
+  });
+  select.value = current;
+}
+
+async function showStaffDetail(id) {
+  const r = await fetch("/api/admin/staff/" + id, { credentials: "include" });
+  if (!r.ok) return errorAlert("Gagal memuat detail staff");
+  const d = await r.json();
+  const s = d.data;
+
+  document.getElementById("staffDetailContent").innerHTML = `
+    <h1>Detail Staff</h1>
+    <table>
+      <tr><th>NIK</th><td>${s.nik}</td></tr>
+      <tr><th>Nama Lengkap</th><td>${s.nama_lengkap}</td></tr>
+      <tr><th>Jenis Kelamin</th><td>${s.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}</td></tr>
+      <tr><th>Agama</th><td>${s.agama || "-"}</td></tr>
+      <tr><th>Tempat, Tanggal Lahir</th><td>${s.tempat_lahir || "-"}, ${s.tanggal_lahir ? s.tanggal_lahir.substring(0, 10) : "-"}</td></tr>
+      <tr><th>Alamat</th><td>${s.alamat || "-"}</td></tr>
+      <tr><th>No HP</th><td>${s.no_hp || "-"}</td></tr>
+      <tr><th>Email</th><td>${s.email || "-"}</td></tr>
+      <tr><th>Jabatan</th><td>${s.jabatan}</td></tr>
+      <tr><th>Status Kepegawaian</th><td>${s.status_kepegawaian || "-"}</td></tr>
+      <tr><th>Tanggal Mulai</th><td>${s.tanggal_mulai ? s.tanggal_mulai.substring(0, 10) : "-"}</td></tr>
+      <tr><th>Status</th><td>${s.status === "aktif" ? "Aktif" : "Nonaktif"}</td></tr>
+      <tr><th>Keterangan</th><td>${s.keterangan || "-"}</td></tr>
+    </table>
+  `;
+
+  document
+    .querySelectorAll(".page")
+    .forEach((p) => p.classList.remove("active"));
+  document.getElementById("page-staff-detail").classList.add("active");
+}
+
+document.getElementById("staffDetailBack").onclick = () => {
+  document
+    .querySelectorAll(".page")
+    .forEach((p) => p.classList.remove("active"));
+  document.getElementById("page-staff").classList.add("active");
+  loadStaff();
+};
+
+document.getElementById("staffForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target;
+
+  const noHp = f.no_hp.value.trim();
+  if (noHp && !/^(08|628)[0-9]{8,13}$/.test(noHp)) {
+    return errorAlert(
+      "Nomor HP tidak valid. Gunakan format 08xxxxxxxxxx atau 628xxxxxxxxxx",
+    );
+  }
+
+  const body = {
+    nik: f.nik.value,
+    nama_lengkap: f.nama_lengkap.value,
+    jenis_kelamin: f.jenis_kelamin.value,
+    agama: f.agama.value,
+    tempat_lahir: f.tempat_lahir.value,
+    tanggal_lahir: f.tanggal_lahir.value,
+    alamat: f.alamat.value,
+    no_hp: f.no_hp.value,
+    email: f.email.value,
+    jabatan: f.jabatan.value,
+    status_kepegawaian: f.status_kepegawaian.value,
+    tanggal_mulai: f.tanggal_mulai.value,
+    status: f.status.value,
+    keterangan: f.keterangan.value,
+  };
+  const url = f.dataset.editId
+    ? "/api/admin/staff/" + f.dataset.editId
+    : "/api/admin/staff";
+  const method = f.dataset.editId ? "PUT" : "POST";
+
+  const res = await fetch(url, {
+    method,
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    return errorAlert(errData.error || "Gagal menyimpan data staff");
+  }
+
+  delete f.dataset.editId;
+  f.reset();
+  closeFormModal("staffFormModalOverlay");
+  successAlert("Data staff berhasil disimpan");
+  loadStaff();
+  populateStaffJabatanFilter();
+};
+
+document.getElementById("staffSearchNama").oninput = () => loadStaff();
+document.getElementById("staffFilterJabatan").onchange = () => loadStaff();
+document.getElementById("staffFilterStatus").onchange = () => loadStaff();
 
 /* KELAS */
 async function populateWaliGuru() {
@@ -380,6 +1037,8 @@ async function loadKelas() {
       f.section.value = k.section;
       document.getElementById("kelasWali").value = k.wali_id || "";
       f.dataset.editId = k.id;
+      document.getElementById("kelasFormModalTitle").textContent = "Edit Kelas";
+      openFormModal("kelasFormModalOverlay");
     };
   });
   populateKelasFilter();
@@ -406,6 +1065,7 @@ document.getElementById("kelasForm").onsubmit = async (e) => {
   });
   delete f.dataset.editId;
   f.reset();
+  closeFormModal("kelasFormModalOverlay");
   loadKelas();
   populateClassSelect();
 };
@@ -474,6 +1134,8 @@ async function loadSiswa() {
       document.getElementById("siswaKelas").value = s.kelas_id || "";
       f.hpOrtu.value = s.hp_ortu || "";
       f.dataset.editId = s.id;
+      document.getElementById("siswaFormModalTitle").textContent = "Edit Siswa";
+      openFormModal("siswaFormModalOverlay");
     };
   });
 }
@@ -693,6 +1355,7 @@ document.getElementById("siswaForm").onsubmit = async (e) => {
     // cleanup form and refresh list
     delete f.dataset.editId;
     f.reset();
+    closeFormModal("siswaFormModalOverlay");
     loadSiswa();
   } catch (err) {
     console.error("submit siswa error:", err);
@@ -724,6 +1387,1055 @@ document.getElementById("lihatSiswaBtn").onclick = async () => {
   renderSiswaPerKelas(d.data || []);
 };
 
+/* =========================================================
+   SARANA
+========================================================= */
+
+const conditionLabel = {
+  baik: "Baik",
+  rusak_ringan: "Rusak Ringan",
+  rusak_berat: "Rusak Berat",
+};
+
+const statusLabel = {
+  aktif: "Aktif",
+  nonaktif: "Nonaktif",
+};
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "-";
+
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function loadSaranaStats() {
+  try {
+    const res = await fetch("/api/admin/facilities/stats", {
+      credentials: "include",
+    });
+
+    if (!res.ok) throw new Error();
+
+    const d = await res.json();
+    const stats = d.data || {};
+
+    document.getElementById("saranaStatTotal").textContent = stats.total || 0;
+
+    document.getElementById("saranaStatBaik").textContent = stats.baik || 0;
+
+    document.getElementById("saranaStatRusakRingan").textContent =
+      stats.rusak_ringan || 0;
+
+    document.getElementById("saranaStatRusakBerat").textContent =
+      stats.rusak_berat || 0;
+  } catch (err) {
+    console.error("loadSaranaStats:", err);
+  }
+}
+
+async function populateSaranaCategories() {
+  const selects = [
+    document.getElementById("saranaCategoryId"),
+    document.getElementById("saranaFilterCategory"),
+  ].filter(Boolean);
+
+  try {
+    const res = await fetch("/api/admin/facility-categories", {
+      credentials: "include",
+    });
+
+    if (!res.ok) return;
+
+    const d = await res.json();
+    const data = d.data || [];
+
+    selects.forEach((select, index) => {
+      const currentValue = select.value;
+
+      select.innerHTML =
+        index === 0
+          ? `<option value="">-- Pilih Kategori --</option>`
+          : `<option value="">Semua Kategori</option>`;
+
+      data.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.name;
+        select.appendChild(option);
+      });
+
+      select.value = currentValue;
+    });
+  } catch (err) {
+    console.error("populateSaranaCategories:", err);
+  }
+}
+
+async function populateSaranaLocations() {
+  const select = document.getElementById("saranaFilterLocation");
+  if (!select) return;
+
+  try {
+    const res = await fetch("/api/admin/facilities/locations", {
+      credentials: "include",
+    });
+
+    if (!res.ok) return;
+
+    const d = await res.json();
+    const locations = d.data || [];
+    const currentValue = select.value;
+
+    select.innerHTML = `<option value="">Semua Lokasi</option>`;
+
+    locations.forEach((location) => {
+      const option = document.createElement("option");
+      option.value = location;
+      option.textContent = location;
+      select.appendChild(option);
+    });
+
+    select.value = currentValue;
+  } catch (err) {
+    console.error("populateSaranaLocations:", err);
+  }
+}
+
+async function loadSarana() {
+  const search = document.getElementById("saranaSearch")?.value.trim() || "";
+
+  const categoryId =
+    document.getElementById("saranaFilterCategory")?.value || "";
+
+  const condition =
+    document.getElementById("saranaFilterCondition")?.value || "";
+
+  const status = document.getElementById("saranaFilterStatus")?.value || "";
+
+  const location = document.getElementById("saranaFilterLocation")?.value || "";
+
+  const params = new URLSearchParams();
+
+  if (search) params.set("search", search);
+  if (categoryId) params.set("category_id", categoryId);
+  if (condition) params.set("condition_status", condition);
+  if (status) params.set("status", status);
+  if (location) params.set("location", location);
+
+  try {
+    const res = await fetch(`/api/admin/facilities?${params.toString()}`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat data sarana");
+    }
+
+    const d = await res.json();
+    const data = d.data || [];
+
+    const tbody = document.querySelector("#saranaTable tbody");
+
+    if (!tbody) return;
+
+    if (!data.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="table-empty">
+            Data sarana belum tersedia.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = data
+      .map(
+        (item) => `
+        <tr>
+          <td>${escapeHtml(item.code)}</td>
+          <td>${escapeHtml(item.name)}</td>
+          <td>${escapeHtml(item.category_name)}</td>
+          <td>${escapeHtml(item.quantity)}</td>
+          <td>${conditionLabel[item.condition_status] || item.condition_status}</td>
+          <td>${escapeHtml(item.location)}</td>
+          <td>${statusLabel[item.status] || item.status}</td>
+          <td>
+            <div class="action-buttons">
+              <button
+                class="btn-detail"
+                data-sarana-detail="${item.id}"
+              >
+                Detail
+              </button>
+
+              <button
+                class="btn-edit"
+                data-sarana-edit="${item.id}"
+              >
+                Edit
+              </button>
+
+              <button
+                class="btn-delete"
+                data-sarana-delete="${item.id}"
+              >
+                Hapus
+              </button>
+            </div>
+          </td>
+        </tr>
+      `,
+      )
+      .join("");
+
+    tbody.querySelectorAll("[data-sarana-detail]").forEach((btn) => {
+      btn.onclick = () => showSaranaDetail(btn.dataset.saranaDetail);
+    });
+
+    tbody.querySelectorAll("[data-sarana-edit]").forEach((btn) => {
+      btn.onclick = () => editSarana(btn.dataset.saranaEdit);
+    });
+
+    tbody.querySelectorAll("[data-sarana-delete]").forEach((btn) => {
+      btn.onclick = () => deleteSarana(btn.dataset.saranaDelete);
+    });
+  } catch (err) {
+    console.error("loadSarana:", err);
+    errorAlert("Gagal memuat data sarana");
+  }
+}
+
+function formatMaintenanceStatus(status) {
+  const labels = {
+    dilaporkan: "Dilaporkan",
+    diproses: "Diproses",
+    selesai: "Selesai",
+  };
+
+  return labels[status] || status || "-";
+}
+
+function formatMaintenanceDate(value) {
+  if (!value) return "-";
+
+  return String(value).slice(0, 10);
+}
+
+function formatMaintenanceCost(value) {
+  return `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
+}
+
+function renderFacilityMaintenance(rows) {
+  const tbody = document.querySelector("#facilityMaintenanceTable tbody");
+
+  if (!tbody) return;
+
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" class="maintenance-empty">
+          Belum ada riwayat pemeliharaan.
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map(
+      (item) => `
+        <tr>
+          <td>${formatMaintenanceDate(item.maintenance_date)}</td>
+
+          <td>${escapeHtml(item.issue_description || "-")}</td>
+
+          <td>${escapeHtml(item.action_taken || "-")}</td>
+
+          <td>${formatMaintenanceCost(item.cost)}</td>
+
+          <td>${formatMaintenanceStatus(item.status)}</td>
+
+          <td>${escapeHtml(item.notes || "-")}</td>
+
+          <td>
+            <button
+              type="button"
+              class="edit-facility-maintenance"
+              data-id="${item.id}"
+            >
+              Edit
+            </button>
+
+            <button
+              type="button"
+              class="del-facility-maintenance"
+              data-id="${item.id}"
+            >
+              Hapus
+            </button>
+          </td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  attachFacilityMaintenanceActions();
+}
+async function loadFacilityMaintenance(facilityId) {
+  const tbody = document.querySelector("#facilityMaintenanceTable tbody");
+
+  if (!tbody || !facilityId) return;
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="7" style="text-align:center">
+        Memuat riwayat pemeliharaan...
+      </td>
+    </tr>
+  `;
+
+  try {
+    const res = await fetch(`/api/admin/facilities/${facilityId}/maintenance`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat riwayat pemeliharaan");
+    }
+
+    const json = await res.json();
+
+    renderFacilityMaintenance(json.data || []);
+  } catch (err) {
+    console.error("loadFacilityMaintenance:", err);
+
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center;color:#dc2626">
+          Gagal memuat riwayat pemeliharaan.
+        </td>
+      </tr>
+    `;
+  }
+}
+
+async function showSaranaDetail(id) {
+  currentFacilityDetailId = Number(id);
+  try {
+    const res = await fetch(`/api/admin/facilities/${id}`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      return errorAlert("Detail sarana tidak ditemukan");
+    }
+
+    const d = await res.json();
+    const item = d.data;
+
+    const content = document.getElementById("saranaDetailContent");
+
+    content.innerHTML = `
+      <div class="detail-card">
+        <table>
+          <tbody>
+            <tr><th>Kode</th><td>${escapeHtml(item.code)}</td></tr>
+            <tr><th>Nama</th><td>${escapeHtml(item.name)}</td></tr>
+            <tr><th>Kategori</th><td>${escapeHtml(item.category_name)}</td></tr>
+            <tr><th>Jumlah</th><td>${escapeHtml(item.quantity)}</td></tr>
+            <tr><th>Kondisi</th><td>${conditionLabel[item.condition_status] || item.condition_status}</td></tr>
+            <tr><th>Lokasi</th><td>${escapeHtml(item.location)}</td></tr>
+            <tr><th>Tanggal Pengadaan</th><td>${escapeHtml(item.procurement_date)}</td></tr>
+            <tr><th>Sumber Dana</th><td>${escapeHtml(item.funding_source)}</td></tr>
+            <tr><th>Status</th><td>${statusLabel[item.status] || item.status}</td></tr>
+            <tr><th>Deskripsi</th><td>${escapeHtml(item.description)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    const maintenanceBody = document.querySelector(
+      "#facilityMaintenanceTable tbody",
+    );
+
+    const maintenance = d.maintenance || [];
+
+    if (!maintenance.length) {
+      maintenanceBody.innerHTML = `
+        <tr>
+          <td colspan="6" class="maintenance-empty">
+            Belum ada riwayat pemeliharaan.
+          </td>
+        </tr>
+      `;
+    } else {
+      maintenanceBody.innerHTML = maintenance
+        .map(
+          (m) => `
+          <tr>
+            <td>${escapeHtml(m.maintenance_date)}</td>
+            <td>${escapeHtml(m.issue_description)}</td>
+            <td>${escapeHtml(m.action_taken)}</td>
+            <td>Rp ${Number(m.cost || 0).toLocaleString("id-ID")}</td>
+            <td>${escapeHtml(m.status)}</td>
+            <td>${escapeHtml(m.notes)}</td>
+          </tr>
+        `,
+        )
+        .join("");
+    }
+
+    showAdminPage("sarana-detail");
+    await loadFacilityMaintenance(id);
+  } catch (err) {
+    console.error("showSaranaDetail:", err);
+    errorAlert("Gagal memuat detail sarana");
+  }
+}
+
+function openFacilityMaintenanceCreateForm() {
+  if (!currentFacilityDetailId) {
+    errorAlert("Sarana belum dipilih");
+    return;
+  }
+
+  const wrapper = document.getElementById("facilityMaintenanceFormWrapper");
+
+  const form = document.getElementById("facilityMaintenanceForm");
+
+  const title = document.getElementById("facilityMaintenanceFormTitle");
+
+  form.reset();
+  delete form.dataset.editId;
+
+  title.textContent = "Tambah Riwayat Pemeliharaan";
+
+  form.maintenance_date.value = new Date().toISOString().slice(0, 10);
+
+  form.status.value = "dilaporkan";
+  form.cost.value = "0";
+
+  wrapper.style.display = "flex";
+}
+async function editFacilityMaintenance(id) {
+  try {
+    const res = await fetch(`/api/admin/facility-maintenance/${id}`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat data pemeliharaan");
+    }
+
+    const json = await res.json();
+    const item = json.data;
+
+    const wrapper = document.getElementById("facilityMaintenanceFormWrapper");
+
+    const form = document.getElementById("facilityMaintenanceForm");
+
+    const title = document.getElementById("facilityMaintenanceFormTitle");
+
+    form.reset();
+
+    form.dataset.editId = item.id;
+
+    form.maintenance_date.value = item.maintenance_date
+      ? String(item.maintenance_date).slice(0, 10)
+      : "";
+
+    form.issue_description.value = item.issue_description || "";
+
+    form.action_taken.value = item.action_taken || "";
+
+    form.cost.value = item.cost ?? 0;
+
+    form.status.value = item.status || "dilaporkan";
+
+    form.notes.value = item.notes || "";
+
+    title.textContent = "Edit Riwayat Pemeliharaan";
+
+    wrapper.style.display = "flex";
+  } catch (err) {
+    console.error("editFacilityMaintenance:", err);
+    errorAlert("Gagal memuat data riwayat pemeliharaan");
+  }
+}
+async function deleteFacilityMaintenance(id) {
+  const confirmed = await confirmDelete(
+    "Riwayat pemeliharaan ini akan dihapus secara permanen.",
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/admin/facility-maintenance/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    const json = await res.json();
+
+    if (!res.ok || !json.ok) {
+      errorAlert(json.error || "Gagal menghapus riwayat pemeliharaan");
+      return;
+    }
+
+    successAlert(json.message || "Riwayat pemeliharaan berhasil dihapus");
+
+    await loadFacilityMaintenance(currentFacilityDetailId);
+  } catch (err) {
+    console.error("deleteFacilityMaintenance:", err);
+    errorAlert("Terjadi kesalahan saat menghapus riwayat");
+  }
+}
+function attachFacilityMaintenanceActions() {
+  document.querySelectorAll(".edit-facility-maintenance").forEach((button) => {
+    button.onclick = () => {
+      editFacilityMaintenance(button.dataset.id);
+    };
+  });
+
+  document.querySelectorAll(".del-facility-maintenance").forEach((button) => {
+    button.onclick = () => {
+      deleteFacilityMaintenance(button.dataset.id);
+    };
+  });
+}
+
+async function editSarana(id) {
+  try {
+    const res = await fetch(`/api/admin/facilities/${id}`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      return errorAlert("Data sarana tidak ditemukan");
+    }
+
+    const d = await res.json();
+    const item = d.data;
+    const form = document.getElementById("saranaForm");
+
+    await populateSaranaCategories();
+
+    form.category_id.value = item.category_id;
+    form.code.value = item.code || "";
+    form.name.value = item.name || "";
+    form.quantity.value = item.quantity || 1;
+    form.condition_status.value = item.condition_status || "baik";
+    form.location.value = item.location || "";
+    form.procurement_date.value = item.procurement_date
+      ? String(item.procurement_date).slice(0, 10)
+      : "";
+    form.funding_source.value = item.funding_source || "";
+    form.status.value = item.status || "aktif";
+    form.description.value = item.description || "";
+
+    form.dataset.editId = id;
+
+    document.getElementById("saranaFormModalTitle").textContent = "Edit Sarana";
+    openFormModal("saranaFormModalOverlay");
+  } catch (err) {
+    console.error("editSarana:", err);
+    errorAlert("Gagal memuat data sarana");
+  }
+}
+
+async function deleteSarana(id) {
+  const confirmed = await confirmDelete(
+    "Data sarana dan riwayat pemeliharaannya akan dihapus.",
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/admin/facilities/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    const d = await res.json().catch(() => ({}));
+
+    if (!res.ok || !d.ok) {
+      return errorAlert(d.error || "Gagal menghapus sarana");
+    }
+
+    successAlert("Data sarana berhasil dihapus");
+    loadSarana();
+    loadSaranaStats();
+    populateSaranaLocations();
+  } catch (err) {
+    console.error("deleteSarana:", err);
+    errorAlert("Gagal menghapus sarana");
+  }
+}
+
+document.getElementById("saranaForm").onsubmit = async (e) => {
+  e.preventDefault();
+
+  const form = e.target;
+
+  const body = {
+    category_id: Number(form.category_id.value),
+    code: form.code.value.trim(),
+    name: form.name.value.trim(),
+    quantity: Number(form.quantity.value || 1),
+    condition_status: form.condition_status.value,
+    location: form.location.value.trim() || null,
+    procurement_date: form.procurement_date.value || null,
+    funding_source: form.funding_source.value.trim() || null,
+    status: form.status.value,
+    description: form.description.value.trim() || null,
+  };
+
+  const editId = form.dataset.editId;
+
+  const url = editId
+    ? `/api/admin/facilities/${editId}`
+    : "/api/admin/facilities";
+
+  const method = editId ? "PUT" : "POST";
+
+  try {
+    const res = await fetch(url, {
+      method,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const d = await res.json().catch(() => ({}));
+
+    if (!res.ok || !d.ok) {
+      return errorAlert(d.error || "Gagal menyimpan data sarana");
+    }
+
+    successAlert(
+      editId
+        ? "Data sarana berhasil diperbarui"
+        : "Data sarana berhasil ditambahkan",
+    );
+
+    delete form.dataset.editId;
+    form.reset();
+
+    closeFormModal("saranaFormModalOverlay");
+
+    loadSarana();
+    loadSaranaStats();
+    populateSaranaLocations();
+  } catch (err) {
+    console.error("submit sarana:", err);
+    errorAlert("Terjadi kesalahan saat menyimpan sarana");
+  }
+};
+
+document.getElementById("saranaCancelEdit").onclick = () => {
+  const form = document.getElementById("saranaForm");
+
+  delete form.dataset.editId;
+  form.reset();
+
+  closeFormModal("saranaFormModalOverlay");
+};
+
+document.getElementById("saranaDetailBack").onclick = () => {
+  showAdminPage("sarana");
+  loadSarana();
+};
+
+[
+  "saranaSearch",
+  "saranaFilterCategory",
+  "saranaFilterCondition",
+  "saranaFilterStatus",
+  "saranaFilterLocation",
+].forEach((id) => {
+  const element = document.getElementById(id);
+
+  if (!element) return;
+
+  element.addEventListener(id === "saranaSearch" ? "input" : "change", () =>
+    loadSarana(),
+  );
+});
+
+/* =========================================================
+   PRASARANA
+========================================================= */
+
+function showAdminPage(pageName) {
+  document
+    .querySelectorAll(".page")
+    .forEach((page) => page.classList.remove("active"));
+
+  const page = document.getElementById(`page-${pageName}`);
+
+  if (page) page.classList.add("active");
+}
+
+async function loadPrasaranaStats() {
+  try {
+    const res = await fetch("/api/admin/infrastructure/stats", {
+      credentials: "include",
+    });
+
+    if (!res.ok) throw new Error();
+
+    const d = await res.json();
+    const stats = d.data || {};
+
+    document.getElementById("prasaranaStatTotal").textContent =
+      stats.total || 0;
+
+    document.getElementById("prasaranaStatBaik").textContent = stats.baik || 0;
+
+    document.getElementById("prasaranaStatRusakRingan").textContent =
+      stats.rusak_ringan || 0;
+
+    document.getElementById("prasaranaStatRusakBerat").textContent =
+      stats.rusak_berat || 0;
+  } catch (err) {
+    console.error("loadPrasaranaStats:", err);
+  }
+}
+
+async function populatePrasaranaTypes() {
+  const select = document.getElementById("prasaranaFilterType");
+
+  if (!select) return;
+
+  try {
+    const res = await fetch("/api/admin/infrastructure/types", {
+      credentials: "include",
+    });
+
+    if (!res.ok) return;
+
+    const d = await res.json();
+    const types = d.data || [];
+    const currentValue = select.value;
+
+    select.innerHTML = `<option value="">Semua Jenis</option>`;
+
+    types.forEach((type) => {
+      const option = document.createElement("option");
+      option.value = type;
+      option.textContent = type;
+      select.appendChild(option);
+    });
+
+    select.value = currentValue;
+  } catch (err) {
+    console.error("populatePrasaranaTypes:", err);
+  }
+}
+
+async function loadPrasarana() {
+  const search = document.getElementById("prasaranaSearch")?.value.trim() || "";
+
+  const type = document.getElementById("prasaranaFilterType")?.value || "";
+
+  const condition =
+    document.getElementById("prasaranaFilterCondition")?.value || "";
+
+  const status = document.getElementById("prasaranaFilterStatus")?.value || "";
+
+  const params = new URLSearchParams();
+
+  if (search) params.set("search", search);
+  if (type) params.set("type", type);
+  if (condition) params.set("condition_status", condition);
+  if (status) params.set("status", status);
+
+  try {
+    const res = await fetch(`/api/admin/infrastructure?${params.toString()}`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat prasarana");
+    }
+
+    const d = await res.json();
+    const data = d.data || [];
+
+    const tbody = document.querySelector("#prasaranaTable tbody");
+
+    if (!tbody) return;
+
+    if (!data.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" class="table-empty">
+            Data prasarana belum tersedia.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = data
+      .map(
+        (item) => `
+        <tr>
+          <td>${escapeHtml(item.code)}</td>
+          <td>${escapeHtml(item.name)}</td>
+          <td>${escapeHtml(item.type)}</td>
+          <td>${escapeHtml(item.capacity)}</td>
+          <td>${escapeHtml(item.area_size)}</td>
+          <td>${escapeHtml(item.location)}</td>
+          <td>${conditionLabel[item.condition_status] || item.condition_status}</td>
+          <td>${statusLabel[item.status] || item.status}</td>
+          <td>
+            <div class="action-buttons">
+              <button
+                class="btn-detail"
+                data-prasarana-detail="${item.id}"
+              >
+                Detail
+              </button>
+
+              <button
+                class="btn-edit"
+                data-prasarana-edit="${item.id}"
+              >
+                Edit
+              </button>
+
+              <button
+                class="btn-delete"
+                data-prasarana-delete="${item.id}"
+              >
+                Hapus
+              </button>
+            </div>
+          </td>
+        </tr>
+      `,
+      )
+      .join("");
+
+    tbody.querySelectorAll("[data-prasarana-detail]").forEach((btn) => {
+      btn.onclick = () => showPrasaranaDetail(btn.dataset.prasaranaDetail);
+    });
+
+    tbody.querySelectorAll("[data-prasarana-edit]").forEach((btn) => {
+      btn.onclick = () => editPrasarana(btn.dataset.prasaranaEdit);
+    });
+
+    tbody.querySelectorAll("[data-prasarana-delete]").forEach((btn) => {
+      btn.onclick = () => deletePrasarana(btn.dataset.prasaranaDelete);
+    });
+  } catch (err) {
+    console.error("loadPrasarana:", err);
+    errorAlert("Gagal memuat data prasarana");
+  }
+}
+
+async function showPrasaranaDetail(id) {
+  try {
+    const res = await fetch(`/api/admin/infrastructure/${id}`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      return errorAlert("Detail prasarana tidak ditemukan");
+    }
+
+    const d = await res.json();
+    const item = d.data;
+
+    document.getElementById("prasaranaDetailContent").innerHTML = `
+      <div class="detail-card">
+        <table>
+          <tbody>
+            <tr><th>Kode</th><td>${escapeHtml(item.code)}</td></tr>
+            <tr><th>Nama</th><td>${escapeHtml(item.name)}</td></tr>
+            <tr><th>Jenis</th><td>${escapeHtml(item.type)}</td></tr>
+            <tr><th>Kapasitas</th><td>${escapeHtml(item.capacity)}</td></tr>
+            <tr><th>Luas</th><td>${escapeHtml(item.area_size)} m²</td></tr>
+            <tr><th>Lokasi</th><td>${escapeHtml(item.location)}</td></tr>
+            <tr><th>Kondisi</th><td>${conditionLabel[item.condition_status] || item.condition_status}</td></tr>
+            <tr><th>Status</th><td>${statusLabel[item.status] || item.status}</td></tr>
+            <tr><th>Deskripsi</th><td>${escapeHtml(item.description)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    showAdminPage("prasarana-detail");
+  } catch (err) {
+    console.error("showPrasaranaDetail:", err);
+    errorAlert("Gagal memuat detail prasarana");
+  }
+}
+
+async function editPrasarana(id) {
+  try {
+    const res = await fetch(`/api/admin/infrastructure/${id}`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      return errorAlert("Data prasarana tidak ditemukan");
+    }
+
+    const d = await res.json();
+    const item = d.data;
+    const form = document.getElementById("prasaranaForm");
+
+    form.code.value = item.code || "";
+    form.name.value = item.name || "";
+    form.type.value = item.type || "";
+    form.capacity.value = item.capacity ?? "";
+    form.area_size.value = item.area_size ?? "";
+    form.location.value = item.location || "";
+    form.condition_status.value = item.condition_status || "baik";
+    form.status.value = item.status || "aktif";
+    form.description.value = item.description || "";
+
+    form.dataset.editId = id;
+
+    document.getElementById("prasaranaFormModalTitle").textContent =
+      "Edit Prasarana";
+    openFormModal("prasaranaFormModalOverlay");
+  } catch (err) {
+    console.error("editPrasarana:", err);
+    errorAlert("Gagal memuat data prasarana");
+  }
+}
+
+async function deletePrasarana(id) {
+  const confirmed = await confirmDelete("Data prasarana akan dihapus.");
+
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/admin/infrastructure/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    const d = await res.json().catch(() => ({}));
+
+    if (!res.ok || !d.ok) {
+      return errorAlert(d.error || "Gagal menghapus prasarana");
+    }
+
+    successAlert("Data prasarana berhasil dihapus");
+
+    loadPrasarana();
+    loadPrasaranaStats();
+    populatePrasaranaTypes();
+  } catch (err) {
+    console.error("deletePrasarana:", err);
+    errorAlert("Gagal menghapus prasarana");
+  }
+}
+
+document.getElementById("prasaranaForm").onsubmit = async (e) => {
+  e.preventDefault();
+
+  const form = e.target;
+
+  const body = {
+    code: form.code.value.trim(),
+    name: form.name.value.trim(),
+    type: form.type.value.trim(),
+    capacity: form.capacity.value === "" ? null : Number(form.capacity.value),
+    area_size:
+      form.area_size.value === "" ? null : Number(form.area_size.value),
+    location: form.location.value.trim() || null,
+    condition_status: form.condition_status.value,
+    status: form.status.value,
+    description: form.description.value.trim() || null,
+  };
+
+  const editId = form.dataset.editId;
+
+  const url = editId
+    ? `/api/admin/infrastructure/${editId}`
+    : "/api/admin/infrastructure";
+
+  const method = editId ? "PUT" : "POST";
+
+  try {
+    const res = await fetch(url, {
+      method,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const d = await res.json().catch(() => ({}));
+
+    if (!res.ok || !d.ok) {
+      return errorAlert(d.error || "Gagal menyimpan prasarana");
+    }
+
+    successAlert(
+      editId
+        ? "Data prasarana berhasil diperbarui"
+        : "Data prasarana berhasil ditambahkan",
+    );
+
+    delete form.dataset.editId;
+    form.reset();
+
+    closeFormModal("prasaranaFormModalOverlay");
+
+    loadPrasarana();
+    loadPrasaranaStats();
+    populatePrasaranaTypes();
+  } catch (err) {
+    console.error("submit prasarana:", err);
+    errorAlert("Terjadi kesalahan saat menyimpan prasarana");
+  }
+};
+
+document.getElementById("prasaranaCancelEdit").onclick = () => {
+  const form = document.getElementById("prasaranaForm");
+
+  delete form.dataset.editId;
+  form.reset();
+
+  closeFormModal("prasaranaFormModalOverlay");
+};
+
+document.getElementById("prasaranaDetailBack").onclick = () => {
+  showAdminPage("prasarana");
+  loadPrasarana();
+};
+
+[
+  "prasaranaSearch",
+  "prasaranaFilterType",
+  "prasaranaFilterCondition",
+  "prasaranaFilterStatus",
+].forEach((id) => {
+  const element = document.getElementById(id);
+
+  if (!element) return;
+
+  element.addEventListener(id === "prasaranaSearch" ? "input" : "change", () =>
+    loadPrasarana(),
+  );
+});
+
 /* INITIAL LOAD ADMIN (existing) */
 (async () => {
   await me();
@@ -734,6 +2446,11 @@ document.getElementById("lihatSiswaBtn").onclick = async () => {
   populateKelasFilter();
   populateWaliGuru();
   loadSiswa();
+  loadStaff();
+  populateStaffJabatanFilter();
+  await populateSaranaCategories();
+  populateSaranaLocations();
+  populatePrasaranaTypes();
 })();
 
 /* =========================
@@ -800,6 +2517,8 @@ let sched_prefCurrentSlots = [];
 const sched_saveDraftBtn = document.getElementById("sched_saveDraft");
 const sched_schedulesWrap = document.getElementById("sched_schedulesWrap");
 const sched_scheduleDetail = document.getElementById("sched_scheduleDetail");
+
+let currentFacilityDetailId = null;
 
 /* Helper - load/save local schedules for scheduler area */
 function sched_loadLocalSchedules() {
@@ -1528,17 +3247,6 @@ function sched_renderAllLocalSchedules() {
   });
 }
 
-/* small helper to avoid XSS when rendering names coming from localStorage */
-function escapeHtml(str) {
-  if (!str && str !== 0) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /* ---------- render schedule detail (table) ---------- */
 const DAY_LABELS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 // Default index sesi istirahat (0-based). HARUS konsisten dengan
@@ -1546,7 +3254,7 @@ const DAY_LABELS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 // sesi ke-8 = index 7. Sebelumnya di sini cuma ada 1 nilai (index 3) sehingga
 // sesi ke-8 tidak pernah ditandai "Istirahat" walau backend GA sudah
 // menghindarinya -> tampil sebagai sel kosong yang membingungkan.
-const SCHED_BREAK_SESSION_INDEXES_DEFAULT = [3, 7];
+const SCHED_BREAK_SESSIONS = [3, 7];
 const SCHED_BREAK_DURATION = 30;
 
 function formatHM(totalMinutes) {
@@ -1570,7 +3278,7 @@ function sched_renderScheduleDetail(schedule) {
     Array.isArray(schedule.breakSessionIndexes) &&
     schedule.breakSessionIndexes.length
       ? schedule.breakSessionIndexes
-      : SCHED_BREAK_SESSION_INDEXES_DEFAULT;
+      : SCHED_BREAK_SESSIONS;
 
   const DAY_START_MINUTES = 7 * 60;
   const startTimes = new Array(periodsPerDay);
@@ -1688,8 +3396,14 @@ schedForm?.addEventListener("submit", async (e) => {
     // ({ teacherName, type, priority, slots }), kirim langsung tanpa transformasi
     preferences: schedData.preferences,
     // dikirim eksplisit supaya konsisten antara backend (GA) & frontend (render tabel)
-    breakSessionIndexes: SCHED_BREAK_SESSION_INDEXES_DEFAULT,
+    breakSessionIndexes: SCHED_BREAK_SESSIONS,
   };
+
+  // Tampilkan loading (overlay + tombol) selama proses generate berlangsung.
+  // Kalau proses sebelumnya masih berjalan (klik ganda), hentikan di sini.
+  if (!beforeScheduleGenerate()) return;
+
+  const scheduleGenerateStartedAt = performance.now();
 
   // POST to /api/generate
   try {
@@ -1700,14 +3414,20 @@ schedForm?.addEventListener("submit", async (e) => {
     });
     if (!res.ok) {
       const txt = await res.text();
+      afterScheduleGenerateError();
       errorAlert("Generate gagal — server returned: " + (txt || res.status));
       return;
     }
     const json = await res.json();
     if (!json.ok) {
+      afterScheduleGenerateError();
       errorAlert("Generate gagal");
       return;
     }
+
+    // proses generate di server sudah selesai & sukses
+    afterScheduleGenerateSuccess();
+
     // attach generated result
     payload.generated = json.data;
     payload.assignments = json.data.assignments;
@@ -1725,12 +3445,19 @@ schedForm?.addEventListener("submit", async (e) => {
     payload.name = name;
     arr.push(payload);
     sched_saveLocalSchedules(arr);
-    successAlert(`Generate sukses 🎉 | Fitness: ${payload.fitness}`);
+    const scheduleGenerateSeconds = (
+      (performance.now() - scheduleGenerateStartedAt) /
+      1000
+    ).toFixed(1);
+    successAlert(
+      `Generate sukses 🎉 | Fitness: ${payload.fitness} | Waktu proses: ${scheduleGenerateSeconds} detik`,
+    );
     // refresh list and detail
     sched_renderAllLocalSchedules();
     sched_renderScheduleDetail(payload);
   } catch (err) {
     console.error(err);
+    afterScheduleGenerateError();
     errorAlert("Terjadi kesalahan saat generate. Cek console.");
   }
 });
@@ -1751,6 +3478,901 @@ sched_saveDraftBtn?.addEventListener("click", () => {
   localStorage.setItem("sd_sched_draft_v1", JSON.stringify(draft));
   successAlert("Draft penjadwalan disimpan");
 });
+
+/* ========================================================= LOADING PENJADWALAN ========================================================= */ const scheduleLoadingOverlay =
+  document.getElementById("scheduleLoadingOverlay");
+const scheduleLoadingText = document.getElementById("scheduleLoadingText");
+const scheduleGenerateBtn = document.getElementById("scheduleGenerateBtn");
+/** * Aktifkan loading penjadwalan */ function startScheduleLoading() {
+  if (scheduleLoadingOverlay) {
+    scheduleLoadingOverlay.classList.add("show");
+    scheduleLoadingOverlay.setAttribute("aria-hidden", "false");
+  }
+  if (scheduleLoadingText) {
+    scheduleLoadingText.textContent =
+      "Mohon tunggu, sistem sedang menghitung jadwal terbaik...";
+  }
+  if (scheduleGenerateBtn) {
+    scheduleGenerateBtn.disabled = true;
+    scheduleGenerateBtn.classList.add("schedule-generate-loading");
+    scheduleGenerateBtn.innerHTML = ` <span class="schedule-loading-spinner" aria-hidden="true" ></span> <span>Sedang Generate...</span> `;
+  }
+  /* * Cegah user meninggalkan halaman secara tidak sengaja * menggunakan tombol reload/back ketika proses masih berjalan. */ window.__scheduleGenerating = true;
+}
+/** * Matikan loading penjadwalan */ function stopScheduleLoading() {
+  if (scheduleLoadingOverlay) {
+    scheduleLoadingOverlay.classList.remove("show");
+    scheduleLoadingOverlay.setAttribute("aria-hidden", "true");
+  }
+  if (scheduleGenerateBtn) {
+    scheduleGenerateBtn.disabled = false;
+    scheduleGenerateBtn.classList.remove("schedule-generate-loading");
+    scheduleGenerateBtn.innerHTML = ` <span class="schedule-generate-btn-text"> Simpan & Generate </span> `;
+  }
+  window.__scheduleGenerating = false;
+}
+/** * Tampilkan pesan loading sesuai tahap proses */ function updateScheduleLoadingText(
+  text,
+) {
+  if (scheduleLoadingText) {
+    scheduleLoadingText.textContent = text;
+  }
+}
+/* * Jangan izinkan submit dua kali. */ let scheduleGenerateRunning = false;
+/* ========================================================= HELPER UNTUK DIPANGGIL DI HANDLER GENERATE YANG SUDAH ADA ========================================================= */ /* * Panggil ini TEPAT sebelum fetch("/api/generate"). */ function beforeScheduleGenerate() {
+  if (scheduleGenerateRunning) {
+    return false;
+  }
+  scheduleGenerateRunning = true;
+  startScheduleLoading();
+  updateScheduleLoadingText("Tunggu hingga proses selesai...");
+  return true;
+}
+/* * Panggil ini setelah generate berhasil. */ function afterScheduleGenerateSuccess() {
+  updateScheduleLoadingText("Jadwal berhasil dibuat. Menyiapkan tampilan...");
+  /* * Beri sedikit waktu agar user sempat melihat * pesan sukses sebelum overlay ditutup. */ setTimeout(
+    () => {
+      stopScheduleLoading();
+      scheduleGenerateRunning = false;
+    },
+    500,
+  );
+}
+/* * Panggil ini ketika generate gagal. */ function afterScheduleGenerateError() {
+  stopScheduleLoading();
+  scheduleGenerateRunning = false;
+}
+
+/* =========================================================
+   EKSTRAKURIKULER - ADMIN
+========================================================= */
+
+let currentEkstrakurikulerDetailId = null;
+
+const ekskulDayLabel = {
+  senin: "Senin",
+  selasa: "Selasa",
+  rabu: "Rabu",
+  kamis: "Kamis",
+  jumat: "Jumat",
+  sabtu: "Sabtu",
+};
+
+const ekskulStatusLabel = {
+  aktif: "Aktif",
+  nonaktif: "Nonaktif",
+  keluar: "Keluar",
+};
+
+function formatEkstrakurikulerTime(value) {
+  if (!value) return "-";
+  return String(value).slice(0, 5);
+}
+
+/* =========================================================
+   STATISTIK
+========================================================= */
+
+async function loadEkstrakurikulerStats() {
+  try {
+    const res = await fetch("/api/admin/extracurriculars/stats", {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat statistik ekstrakurikuler");
+    }
+
+    const json = await res.json();
+    const stats = json.data || {};
+
+    document.getElementById("ekskulStatTotal").textContent = stats.total || 0;
+
+    document.getElementById("ekskulStatAktif").textContent = stats.aktif || 0;
+
+    document.getElementById("ekskulStatPeserta").textContent =
+      stats.total_peserta || 0;
+  } catch (err) {
+    console.error("loadEkstrakurikulerStats:", err);
+    errorAlert("Gagal memuat statistik ekstrakurikuler");
+  }
+}
+
+/* =========================================================
+   GURU / PEMBINA
+========================================================= */
+
+async function populateEkstrakurikulerTeachers() {
+  const select = document.getElementById("ekskulTeacherSelect");
+
+  if (!select) return;
+
+  const currentValue = select.value;
+
+  try {
+    const res = await fetch("/api/admin/guru", {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat guru");
+    }
+
+    const json = await res.json();
+    const teachers = json.data || [];
+
+    select.innerHTML = `<option value="">-- Pilih Guru / Pembina --</option>`;
+
+    teachers.forEach((teacher) => {
+      const option = document.createElement("option");
+
+      option.value = teacher.id;
+      option.textContent = `${teacher.nama}${teacher.nip ? ` — ${teacher.nip}` : ""}`;
+
+      select.appendChild(option);
+    });
+
+    if (currentValue) {
+      select.value = currentValue;
+    }
+  } catch (err) {
+    console.error("populateEkstrakurikulerTeachers:", err);
+    errorAlert("Gagal memuat daftar guru");
+  }
+}
+
+/* =========================================================
+   LIST
+========================================================= */
+
+async function loadEkstrakurikuler() {
+  const tbody = document.querySelector("#ekstrakurikulerTable tbody");
+
+  if (!tbody) return;
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="7" style="text-align:center">
+        Memuat data ekstrakurikuler...
+      </td>
+    </tr>
+  `;
+
+  try {
+    const res = await fetch("/api/admin/extracurriculars/", {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat ekstrakurikuler");
+    }
+
+    const json = await res.json();
+    const data = json.data || [];
+
+    if (!data.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center">
+            Belum ada data ekstrakurikuler.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = data
+      .map(
+        (item) => `
+        <tr>
+          <td>${escapeHtml(item.name)}</td>
+
+          <td>${escapeHtml(item.teacher_name)}</td>
+
+          <td>
+            ${escapeHtml(ekskulDayLabel[item.day_of_week] || item.day_of_week)}
+          </td>
+
+          <td>
+            ${formatEkstrakurikulerTime(item.start_time)}
+            -
+            ${formatEkstrakurikulerTime(item.end_time)}
+          </td>
+
+          <td>
+            <strong>${item.active_members}</strong>
+            /
+            ${item.max_members ?? "-"}
+            siswa
+          </td>
+
+          <td>
+            ${item.status === "aktif" ? "Aktif" : "Nonaktif"}
+          </td>
+
+          <td>
+            <div class="action-buttons">
+
+              <button
+                type="button"
+                class="btn-detail"
+                data-ekskul-detail="${item.id}"
+              >
+                Detail
+              </button>
+
+              <button
+                type="button"
+                class="btn-edit"
+                data-ekskul-edit="${item.id}"
+              >
+                Edit
+              </button>
+
+              <button
+                type="button"
+                class="btn-delete"
+                data-ekskul-delete="${item.id}"
+              >
+                Hapus
+              </button>
+
+            </div>
+          </td>
+        </tr>
+      `,
+      )
+      .join("");
+
+    tbody.querySelectorAll("[data-ekskul-detail]").forEach((button) => {
+      button.onclick = () =>
+        showEkstrakurikulerDetail(button.dataset.ekskulDetail);
+    });
+
+    tbody.querySelectorAll("[data-ekskul-edit]").forEach((button) => {
+      button.onclick = () => editEkstrakurikuler(button.dataset.ekskulEdit);
+    });
+
+    tbody.querySelectorAll("[data-ekskul-delete]").forEach((button) => {
+      button.onclick = () => deleteEkstrakurikuler(button.dataset.ekskulDelete);
+    });
+  } catch (err) {
+    console.error("loadEkstrakurikuler:", err);
+
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center;color:#dc2626">
+          Gagal memuat data ekstrakurikuler.
+        </td>
+      </tr>
+    `;
+  }
+}
+
+/* =========================================================
+   FORM TAMBAH / EDIT
+========================================================= */
+
+document
+  .getElementById("addEkstrakurikulerBtn")
+  ?.addEventListener("click", async () => {
+    const wrapper = document.getElementById("ekstrakurikulerFormWrapper");
+
+    const form = document.getElementById("ekstrakurikulerForm");
+
+    const title = document.getElementById("ekstrakurikulerFormTitle");
+
+    await populateEkstrakurikulerTeachers();
+
+    form.reset();
+
+    delete form.dataset.editId;
+
+    title.textContent = "Tambah Ekstrakurikuler";
+
+    form.status.value = "aktif";
+    form.max_members.value = 40;
+
+    wrapper.style.display = "flex";
+  });
+
+document
+  .getElementById("cancelEkstrakurikulerBtn")
+  ?.addEventListener("click", () => {
+    const wrapper = document.getElementById("ekstrakurikulerFormWrapper");
+
+    const form = document.getElementById("ekstrakurikulerForm");
+
+    form.reset();
+
+    delete form.dataset.editId;
+
+    wrapper.style.display = "none";
+  });
+
+document
+  .getElementById("ekstrakurikulerForm")
+  ?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const form = e.target;
+
+    const body = {
+      name: form.name.value.trim(),
+      description: form.description.value.trim() || null,
+
+      teacher_id: Number(form.teacher_id.value),
+
+      day_of_week: form.day_of_week.value,
+
+      start_time: form.start_time.value,
+      end_time: form.end_time.value,
+
+      location: form.location.value.trim() || null,
+
+      max_members: Number(form.max_members.value),
+
+      status: form.status.value,
+    };
+
+    const editId = form.dataset.editId;
+
+    const url = editId
+      ? `/api/admin/extracurriculars/${editId}`
+      : "/api/admin/extracurriculars";
+
+    const method = editId ? "PUT" : "POST";
+
+    try {
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json.ok) {
+        return errorAlert(json.error || "Gagal menyimpan ekstrakurikuler");
+      }
+
+      successAlert(
+        editId
+          ? "Ekstrakurikuler berhasil diperbarui"
+          : "Ekstrakurikuler berhasil ditambahkan",
+      );
+
+      form.reset();
+
+      delete form.dataset.editId;
+
+      document.getElementById("ekstrakurikulerFormWrapper").style.display =
+        "none";
+
+      await loadEkstrakurikuler();
+      await loadEkstrakurikulerStats();
+    } catch (err) {
+      console.error("submit ekstrakurikuler:", err);
+
+      errorAlert("Terjadi kesalahan saat menyimpan ekstrakurikuler");
+    }
+  });
+
+/* =========================================================
+   EDIT
+========================================================= */
+
+async function editEkstrakurikuler(id) {
+  try {
+    const res = await fetch(`/api/admin/extracurriculars/${id}`, {
+      credentials: "include",
+    });
+
+    const json = await res.json();
+
+    if (!res.ok || !json.ok) {
+      return errorAlert(json.error || "Data ekstrakurikuler tidak ditemukan");
+    }
+
+    const item = json.data;
+
+    await populateEkstrakurikulerTeachers();
+
+    const form = document.getElementById("ekstrakurikulerForm");
+
+    form.name.value = item.name || "";
+    form.description.value = item.description || "";
+
+    form.teacher_id.value = item.teacher_id || "";
+
+    form.day_of_week.value = item.day_of_week || "";
+
+    form.start_time.value = formatEkstrakurikulerTime(item.start_time);
+
+    form.end_time.value = formatEkstrakurikulerTime(item.end_time);
+
+    form.location.value = item.location || "";
+
+    form.max_members.value = item.max_members ?? "";
+
+    form.status.value = item.status || "aktif";
+
+    form.dataset.editId = id;
+
+    document.getElementById("ekstrakurikulerFormTitle").textContent =
+      "Edit Ekstrakurikuler";
+
+    document.getElementById("ekstrakurikulerFormWrapper").style.display =
+      "flex";
+  } catch (err) {
+    console.error("editEkstrakurikuler:", err);
+
+    errorAlert("Gagal memuat data ekstrakurikuler");
+  }
+}
+
+/* =========================================================
+   DELETE EKSTRAKURIKULER
+========================================================= */
+
+async function deleteEkstrakurikuler(id) {
+  const confirmed = await confirmDelete(
+    "Ekstrakurikuler dan seluruh data anggotanya akan dihapus.",
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/admin/extracurriculars/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || !json.ok) {
+      return errorAlert(json.error || "Gagal menghapus ekstrakurikuler");
+    }
+
+    successAlert("Ekstrakurikuler berhasil dihapus");
+
+    await loadEkstrakurikuler();
+    await loadEkstrakurikulerStats();
+  } catch (err) {
+    console.error("deleteEkstrakurikuler:", err);
+
+    errorAlert("Gagal menghapus ekstrakurikuler");
+  }
+}
+
+/* =========================================================
+   DETAIL
+========================================================= */
+
+async function showEkstrakurikulerDetail(id) {
+  currentEkstrakurikulerDetailId = Number(id);
+
+  try {
+    const res = await fetch(`/api/admin/extracurriculars/${id}`, {
+      credentials: "include",
+    });
+
+    const json = await res.json();
+
+    if (!res.ok || !json.ok) {
+      return errorAlert(json.error || "Detail ekstrakurikuler tidak ditemukan");
+    }
+
+    const item = json.data;
+
+    document.getElementById("ekstrakurikulerDetailContent").innerHTML = `
+      <div class="detail-card">
+
+        <h2>${escapeHtml(item.name)}</h2>
+
+        <table>
+          <tbody>
+            <tr>
+              <th>Pembina</th>
+              <td>${escapeHtml(item.teacher_name)}</td>
+            </tr>
+
+            <tr>
+              <th>Hari</th>
+              <td>
+                ${escapeHtml(
+                  ekskulDayLabel[item.day_of_week] || item.day_of_week,
+                )}
+              </td>
+            </tr>
+
+            <tr>
+              <th>Waktu</th>
+              <td>
+                ${formatEkstrakurikulerTime(item.start_time)}
+                -
+                ${formatEkstrakurikulerTime(item.end_time)}
+              </td>
+            </tr>
+
+            <tr>
+              <th>Lokasi</th>
+              <td>${escapeHtml(item.location)}</td>
+            </tr>
+
+            <tr>
+              <th>Peserta</th>
+              <td>
+                <strong>${item.active_members}</strong>
+                /
+                ${item.max_members ?? "-"}
+                siswa
+              </td>
+            </tr>
+
+            <tr>
+              <th>Status</th>
+              <td>
+                ${item.status === "aktif" ? "Aktif" : "Nonaktif"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top: 20px">
+          <h3>Deskripsi</h3>
+          <p>
+            ${escapeHtml(item.description || "-")}
+          </p>
+        </div>
+
+      </div>
+    `;
+
+    await populateEkstrakurikulerStudents();
+    await loadEkstrakurikulerMembers(id);
+
+    const joinDate = document.getElementById("ekskulJoinDate");
+
+    if (joinDate) {
+      joinDate.value = new Date().toISOString().slice(0, 10);
+    }
+
+    showAdminPage("ekstrakurikuler-detail");
+  } catch (err) {
+    console.error("showEkstrakurikulerDetail:", err);
+
+    errorAlert("Gagal memuat detail ekstrakurikuler");
+  }
+}
+
+/* =========================================================
+   DAFTAR SISWA UNTUK TAMBAH ANGGOTA
+========================================================= */
+
+async function populateEkstrakurikulerStudents() {
+  const select = document.getElementById("ekskulStudentSelect");
+
+  if (!select) return;
+
+  try {
+    const res = await fetch("/api/admin/siswa", {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error("Gagal memuat siswa");
+    }
+
+    const json = await res.json();
+
+    const students = json.data || [];
+
+    select.innerHTML = `<option value="">-- Pilih Siswa --</option>`;
+
+    students.forEach((student) => {
+      const option = document.createElement("option");
+
+      option.value = student.id;
+
+      option.textContent =
+        `${student.nis} — ${student.nama}` +
+        `${student.kelas_nama ? ` (${student.kelas_nama})` : ""}`;
+
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error("populateEkstrakurikulerStudents:", err);
+
+    errorAlert("Gagal memuat daftar siswa");
+  }
+}
+
+/* =========================================================
+   TAMBAH ANGGOTA
+========================================================= */
+
+document
+  .getElementById("ekstrakurikulerMemberForm")
+  ?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    if (!currentEkstrakurikulerDetailId) {
+      return errorAlert("Ekstrakurikuler belum dipilih");
+    }
+
+    const form = e.target;
+
+    const body = {
+      student_id: Number(form.student_id.value),
+
+      join_date: form.join_date.value,
+
+      status: form.status.value,
+    };
+
+    try {
+      const res = await fetch(
+        `/api/admin/extracurriculars/${currentEkstrakurikulerDetailId}/members`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        },
+      );
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json.ok) {
+        return errorAlert(json.error || "Gagal menambahkan anggota");
+      }
+
+      successAlert(json.message || "Anggota berhasil ditambahkan");
+
+      form.reset();
+
+      form.join_date.value = new Date().toISOString().slice(0, 10);
+
+      form.status.value = "aktif";
+
+      closeFormModal("ekstrakurikulerMemberFormModalOverlay");
+
+      await loadEkstrakurikulerMembers(currentEkstrakurikulerDetailId);
+
+      await loadEkstrakurikulerStats();
+
+      // Refresh detail karena angka peserta berubah.
+      await showEkstrakurikulerDetail(currentEkstrakurikulerDetailId);
+    } catch (err) {
+      console.error("tambah anggota:", err);
+
+      errorAlert("Terjadi kesalahan saat menambahkan anggota");
+    }
+  });
+
+/* =========================================================
+   DAFTAR ANGGOTA
+========================================================= */
+
+async function loadEkstrakurikulerMembers(extracurricularId) {
+  const tbody = document.querySelector("#ekstrakurikulerMemberTable tbody");
+
+  if (!tbody) return;
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="7" style="text-align:center">
+        Memuat anggota...
+      </td>
+    </tr>
+  `;
+
+  try {
+    const res = await fetch(
+      `/api/admin/extracurriculars/${extracurricularId}/members`,
+      {
+        credentials: "include",
+      },
+    );
+
+    const json = await res.json();
+
+    if (!res.ok || !json.ok) {
+      throw new Error(json.error || "Gagal memuat anggota");
+    }
+
+    const members = json.data || [];
+
+    if (!members.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center">
+            Belum ada anggota.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = members
+      .map(
+        (member, index) => `
+        <tr>
+
+          <td>${index + 1}</td>
+
+          <td>${escapeHtml(member.nis)}</td>
+
+          <td>${escapeHtml(member.student_name)}</td>
+
+          <td>${escapeHtml(member.kelas_nama)}</td>
+
+          <td>
+            ${escapeHtml(String(member.join_date || "").slice(0, 10))}
+          </td>
+
+          <td>
+            ${ekskulStatusLabel[member.status] || member.status}
+          </td>
+
+          <td>
+            ${
+              member.status === "aktif"
+                ? `
+                  <button
+                    type="button"
+                    class="btn-delete"
+                    data-ekskul-member-out="${member.id}"
+                  >
+                    Keluarkan
+                  </button>
+                `
+                : `
+                  <button
+                    type="button"
+                    class="ghost"
+                    data-ekskul-member-reactivate="${member.id}"
+                  >
+                    Aktifkan Lagi
+                  </button>
+                `
+            }
+          </td>
+
+        </tr>
+      `,
+      )
+      .join("");
+
+    tbody.querySelectorAll("[data-ekskul-member-out]").forEach((button) => {
+      button.onclick = () =>
+        updateEkstrakurikulerMemberStatus(
+          button.dataset.ekskulMemberOut,
+          "keluar",
+        );
+    });
+
+    tbody
+      .querySelectorAll("[data-ekskul-member-reactivate]")
+      .forEach((button) => {
+        button.onclick = () =>
+          updateEkstrakurikulerMemberStatus(
+            button.dataset.ekskulMemberReactivate,
+            "aktif",
+          );
+      });
+  } catch (err) {
+    console.error("loadEkstrakurikulerMembers:", err);
+
+    tbody.innerHTML = `
+      <tr>
+        <td
+          colspan="7"
+          style="text-align:center;color:#dc2626"
+        >
+          Gagal memuat daftar anggota.
+        </td>
+      </tr>
+    `;
+  }
+}
+
+/* =========================================================
+   UBAH STATUS ANGGOTA
+   AKTIF -> KELUAR
+   KELUAR -> AKTIF
+========================================================= */
+
+async function updateEkstrakurikulerMemberStatus(memberId, status) {
+  const actionText =
+    status === "keluar"
+      ? "Anggota akan ditandai sebagai keluar, bukan dihapus."
+      : "Anggota akan diaktifkan kembali.";
+
+  const confirmed = await confirmAction(
+    actionText,
+    status === "keluar" ? "Keluarkan anggota?" : "Aktifkan kembali anggota?",
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(
+      `/api/admin/extracurricular-members/${memberId}/status`,
+      {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status,
+        }),
+      },
+    );
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || !json.ok) {
+      return errorAlert(json.error || "Gagal mengubah status anggota");
+    }
+
+    successAlert(
+      status === "keluar"
+        ? "Anggota telah ditandai sebagai keluar"
+        : "Anggota berhasil diaktifkan kembali",
+    );
+
+    await loadEkstrakurikulerMembers(currentEkstrakurikulerDetailId);
+
+    await loadEkstrakurikulerStats();
+  } catch (err) {
+    console.error("updateEkstrakurikulerMemberStatus:", err);
+
+    errorAlert("Gagal mengubah status anggota");
+  }
+}
+
+/* =========================================================
+   BACK DETAIL
+========================================================= */
+
+document
+  .getElementById("ekstrakurikulerDetailBack")
+  ?.addEventListener("click", async () => {
+    currentEkstrakurikulerDetailId = null;
+
+    showAdminPage("ekstrakurikuler");
+
+    await loadEkstrakurikuler();
+    await loadEkstrakurikulerStats();
+  });
 
 /* ---------- initial scheduler load ---------- */
 (async function sched_init() {

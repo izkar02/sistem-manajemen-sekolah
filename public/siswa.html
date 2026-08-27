@@ -14,9 +14,14 @@
         <h2 class="logo">SMS Siswa</h2>
         <nav>
           <button data-page="profil">Dashboard</button>
-          <button data-page="jadwal">Jadwal</button>
+          <p class="logo">DATA MASTER</p>
           <button data-page="guru">Daftar Guru</button>
+          <p class="logo">AKADEMIK</p>
+          <button data-page="jadwal">Jadwal</button>
           <button data-page="absensi">Riwayat Absensi</button>
+          <p class="logo">EKSTRAKURIKULER</p>
+          <button data-page="ekstrakurikuler">Ekstrakurikuler</button>
+          <p class="logo">AKUN</p>
           <button data-page="password">Ganti Password</button>
         </nav>
       </aside>
@@ -88,6 +93,45 @@
                 class="card-table"
                 style="margin-top: 12px"
               ></div>
+            </div>
+          </section>
+
+          <!-- EKSTRAKURIKULER -->
+          <section id="page-ekstrakurikuler" class="page">
+            <h1>Ekstrakurikuler</h1>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Ekstrakurikuler Saya</strong>
+                  <div class="hint">
+                    Ekstrakurikuler yang sedang Anda ikuti, berdasarkan data
+                    dari sekolah
+                  </div>
+                </div>
+              </div>
+
+              <div id="siswa_ekskulMineWrap">
+                <div class="empty">Memuat data...</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-1">
+                <div>
+                  <strong>Ekstrakurikuler yang Ada</strong>
+                  <div class="hint">
+                    Daftar ekstrakurikuler aktif di sekolah. Pendaftaran anggota
+                    saat ini masih dikelola oleh pembina/admin.
+                  </div>
+                </div>
+              </div>
+
+              <div id="siswa_ekskulWrap">
+                <div class="empty">Memuat ekstrakurikuler...</div>
+              </div>
+
+              <div id="siswa_ekskulDetail" style="margin-top: 12px"></div>
             </div>
           </section>
 

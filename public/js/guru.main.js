@@ -8,6 +8,20 @@ import {
 } from "./swal-utils.js";
 
 /* ============================================================
+   HELPERS
+   ============================================================ */
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "-";
+
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+/* ============================================================
    STATE GLOBAL
    ============================================================ */
 let ME_DATA = null; // respons /api/auth/me
@@ -35,8 +49,7 @@ async function me() {
   }
 
   ME_DATA = d;
-  document.getElementById("info").textContent =
-    `Halo, ${d.user.username} (${d.user.role}) ${d.user.displayName}`;
+  document.getElementById("info").textContent = `Halo, ${d.user.displayName}`;
   return d;
 }
 
@@ -122,17 +135,31 @@ function showToast(message, type = "default", duration = 3500) {
    ============================================================ */
 const jadwalWrap = document.getElementById("guru_jadwalWrap");
 const jadwalDetail = document.getElementById("guru_jadwalDetail");
+let JADWAL_CACHE = []; // hasil /api/public/jadwal/mine-guru, dipakai lagi saat "Lihat" diklik
 
+// Hanya mengambil jam mengajar milik guru yang login (dicocokkan di server
+// lewat nama guru). Tidak ada lagi fallback ke /api/public/jadwal (daftar
+// semua jadwal) supaya guru tidak bisa melihat jam mengajar guru lain.
 async function fetchJadwalList() {
   try {
-    const res = await fetch("/api/public/jadwal", { credentials: "include" });
+    const res = await fetch("/api/public/jadwal/mine-guru", {
+      credentials: "include",
+    });
     if (res.ok) {
       const j = await res.json();
-      return j.data || [];
+      JADWAL_CACHE = j.data || [];
+      return JADWAL_CACHE;
     }
+    if (res.status === 403) {
+      // token bukan guru / data guru tidak ditemukan
+      JADWAL_CACHE = [];
+      return [];
+    }
+    JADWAL_CACHE = [];
     return [];
   } catch (err) {
     console.error("fetchJadwalList error:", err);
+    JADWAL_CACHE = [];
     return [];
   }
 }
@@ -140,7 +167,7 @@ async function fetchJadwalList() {
 function renderJadwalList(items) {
   jadwalWrap.innerHTML = "";
   if (!items || !items.length) {
-    jadwalWrap.innerHTML = `<div class="empty">Belum ada jadwal tersimpan di server.</div>`;
+    jadwalWrap.innerHTML = `<div class="empty">Anda belum memiliki jam mengajar di jadwal manapun.</div>`;
     return;
   }
   const list = document.createElement("div");
@@ -162,28 +189,27 @@ function renderJadwalList(items) {
   });
   jadwalWrap.appendChild(list);
   jadwalWrap.querySelectorAll("[data-view]").forEach((btn) => {
-    btn.onclick = async (e) => {
-      await loadJadwalDetail(e.currentTarget.dataset.view);
+    btn.onclick = (e) => {
+      loadJadwalDetail(e.currentTarget.dataset.view);
     };
   });
   jadwalWrap.querySelectorAll(".jadwal-name").forEach((el) => {
-    el.onclick = async (ev) => {
-      await loadJadwalDetail(ev.currentTarget.dataset.id);
+    el.onclick = (ev) => {
+      loadJadwalDetail(ev.currentTarget.dataset.id);
     };
   });
 }
 
-async function loadJadwalDetail(id) {
+// Detail diambil dari cache hasil /jadwal/mine-guru (sudah difilter di
+// server), bukan fetch ulang ke endpoint publik yang tidak difilter.
+function loadJadwalDetail(id) {
   if (!id) return;
-  const res = await fetch(`/api/public/jadwal/${encodeURIComponent(id)}`, {
-    credentials: "include",
-  });
-  if (!res.ok) {
+  const schedule = JADWAL_CACHE.find((s) => String(s.id) === String(id));
+  if (!schedule) {
     errorAlert("Gagal memuat detail jadwal");
     return;
   }
-  const j = await res.json();
-  renderJadwalDetail(j.data);
+  renderJadwalDetail(schedule);
 }
 
 const DAY_LABELS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -192,45 +218,43 @@ function formatHM(totalMinutes) {
     m = totalMinutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+// Tabel jadwal khusus guru yang login, bentuk grid Sesi × Hari (sama
+// seperti tampilan admin/siswa), tapi isinya beda tergantung tipe guru:
+//   - Guru kelas -> tiap sel diisi MATA PELAJARAN (karena guru kelas
+//     mengajar satu kelas yang sama untuk semua mapel)
+//   - Guru mapel -> tiap sel diisi NAMA KELAS (karena guru mapel
+//     mengajar satu mapel yang sama ke beberapa kelas berbeda)
+// Sel yang tidak ada jam mengajarnya diisi "-".
 function renderJadwalDetail(schedule) {
   if (!schedule) {
     jadwalDetail.innerHTML = "";
     return;
   }
-  const payload = schedule.payload ?? schedule;
-  const name = schedule.name ?? payload.name ?? "Jadwal";
-  const academic = schedule.academic ?? payload.academic ?? "";
-  const classes =
-    (payload.payload && payload.payload.classes) || payload.classes || [];
-  const daysPerWeek =
-    (payload.payload && payload.payload.daysPerWeek) ||
-    payload.daysPerWeek ||
-    5;
-  const periodsPerDay =
-    (payload.payload && payload.payload.periodsPerDay) ||
-    payload.periodsPerDay ||
-    8;
-  const periodDuration =
-    (payload.payload && payload.payload.periodDuration) ||
-    payload.periodDuration ||
-    35;
-  const assignments =
-    (payload.payload &&
-      payload.payload.generated &&
-      payload.payload.generated.assignments) ||
-    (payload.generated && payload.generated.assignments) ||
-    payload.assignments ||
-    (payload.payload && payload.payload.assignments) ||
-    [];
 
-  const BREAK = 3,
-    BREAK_DUR = 30,
+  const {
+    name,
+    academic,
+    daysPerWeek = 5,
+    periodsPerDay,
+    periodDuration,
+    items = [],
+  } = schedule;
+
+  const teacherType = (ME_DATA && ME_DATA.teacher_type) || "mapel";
+  const isGuruKelas = teacherType === "kelas";
+  const typeLabel = isGuruKelas ? "Guru Kelas" : "Guru Mata Pelajaran";
+
+  // Sesi-sesi yang otomatis jadi jam istirahat, ditulis pakai nomor sesi
+  // seperti yang tampil di tabel (1-based): "Sesi 3" dan "Sesi 7".
+  const SCHED_BREAK_SESSIONS = [4, 8];
+  const BREAK_DUR = 30,
     START = 7 * 60;
   const startTimes = [],
     endTimes = [];
   let cur = START;
   for (let p = 0; p < periodsPerDay; p++) {
-    if (p === BREAK) {
+    if (SCHED_BREAK_SESSIONS.includes(p + 1)) {
       startTimes[p] = cur;
       cur += BREAK_DUR;
       endTimes[p] = cur;
@@ -241,32 +265,40 @@ function renderJadwalDetail(schedule) {
     endTimes[p] = cur;
   }
 
-  let html = `<h2>${name}</h2><p class="meta">${academic}</p>`;
-  classes.forEach((cls, classIdx) => {
-    html += `<h3 class="class-title">Kelas ${cls.display || cls.name}</h3>
-      <table class="schedule-table"><thead><tr><th>Sesi (Waktu)</th>`;
-    html += DAY_LABELS.slice(0, daysPerWeek)
-      .map((d) => `<th>${d}</th>`)
-      .join("");
-    html += `</tr></thead><tbody>`;
-    for (let p = 0; p < periodsPerDay; p++) {
-      const isBreak = p === BREAK;
-      const timeLabel = `${formatHM(startTimes[p])} - ${formatHM(endTimes[p])}`;
-      html += `<tr><td><strong>Sesi ${p + 1}</strong><br><small>${timeLabel}</small>${isBreak ? "<br><em>Istirahat</em>" : ""}</td>`;
-      for (let d = 0; d < daysPerWeek; d++) {
-        if (isBreak) {
-          html += `<td class="break-cell">Istirahat</td>`;
-          continue;
-        }
-        const slot = assignments.find(
-          (a) => a.classIdx === classIdx && a.day === d && a.period === p,
-        );
-        html += `<td>${slot ? `<strong>${slot.subjectName}</strong><br><small>${slot.teacherName}</small>` : "-"}</td>`;
+  let html = `<h2>${name}</h2><p class="meta">${academic || ""} • ${typeLabel}</p>`;
+
+  html += `<table class="schedule-table"><thead><tr><th>Sesi</th>`;
+  html += DAY_LABELS.slice(0, daysPerWeek)
+    .map((d) => `<th>${d}</th>`)
+    .join("");
+  html += `</tr></thead><tbody>`;
+
+  for (let p = 0; p < periodsPerDay; p++) {
+    const isBreak = SCHED_BREAK_SESSIONS.includes(p + 1);
+    const timeLabel = `${formatHM(startTimes[p])} - ${formatHM(endTimes[p])}`;
+    html += `<tr><td><strong>Sesi ${p + 1}</strong><br><small>${timeLabel}</small>${isBreak ? "<br><em>Istirahat</em>" : ""}</td>`;
+
+    for (let d = 0; d < daysPerWeek; d++) {
+      if (isBreak) {
+        html += `<td class="break-cell">Istirahat</td>`;
+        continue;
       }
-      html += `</tr>`;
+      const it = items.find((x) => x.day === d && x.period === p);
+      let cell = "-";
+      if (it) {
+        cell = isGuruKelas
+          ? it.subjectName || "-"
+          : it.className
+            ? `Kelas ${it.className}`
+            : "-";
+      }
+      html += `<td>${cell}</td>`;
     }
-    html += `</tbody></table>`;
-  });
+
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table>`;
   jadwalDetail.innerHTML = html;
 }
 
@@ -516,7 +548,7 @@ function renderGuruProfile(period) {
       <div class="profil-identity-row">
         <span class="profil-icon">${PROFIL_ICONS.briefcase}</span>
         <span class="profil-identity-label">Jenis Guru</span>
-        <span class="profil-identity-value">: ${tipeLabel}</span>
+        <span class="profil-identity-value">: ${tipeLabel} ${g.kelas_nama || ""}</span>
       </div>
       <div class="profil-identity-row">
         <span class="profil-icon">${PROFIL_ICONS.gender}</span>
@@ -547,10 +579,355 @@ function renderGuruProfile(period) {
   `;
 }
 
+/* ============================================================
+   EKSTRAKURIKULER YANG DIBINA
+   ============================================================ */
+
+const EKSTRA_DAY_LABEL = {
+  senin: "Senin",
+  selasa: "Selasa",
+  rabu: "Rabu",
+  kamis: "Kamis",
+  jumat: "Jumat",
+  sabtu: "Sabtu",
+};
+
+function formatEkstraTime(time) {
+  if (!time) return "-";
+
+  return String(time).substring(0, 5);
+}
+
+async function loadGuruEkstrakurikuler() {
+  const wrap = document.getElementById("guruEkstrakurikulerWrap");
+
+  if (!wrap) return;
+
+  try {
+    const res = await fetch("/api/public/extracurriculars/mine-guru", {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      wrap.style.display = "none";
+      return;
+    }
+
+    const d = await res.json();
+
+    const items = d.data || [];
+
+    /*
+     * Jika guru bukan pembina ekskul apa pun,
+     * section tidak ditampilkan.
+     */
+    if (!items.length) {
+      wrap.style.display = "none";
+      return;
+    }
+
+    wrap.style.display = "block";
+
+    wrap.innerHTML = `
+      <p class="section-title">
+        Ekstrakurikuler yang Dibina
+      </p>
+
+      <div
+        class="guru-ekstra-grid"
+        style="
+          display:grid;
+          grid-template-columns:
+            repeat(auto-fit, minmax(260px, 1fr));
+          gap:16px;
+        "
+      >
+
+        ${items
+          .map((item) => {
+            const day =
+              EKSTRA_DAY_LABEL[item.day_of_week] || item.day_of_week || "-";
+
+            const start = formatEkstraTime(item.start_time);
+
+            const end = formatEkstraTime(item.end_time);
+
+            const members = Number(item.active_members || 0);
+
+            return `
+              <div class="card">
+
+                <h3 style="margin-top:0">
+                  ${escapeHtml(item.name)}
+                </h3>
+
+                <div
+                  style="
+                    color:#6b7280;
+                    margin-bottom:8px;
+                  "
+                >
+                  ${day},
+                  ${start}–${end}
+                </div>
+
+                <div
+                  style="
+                    margin-bottom:16px;
+                    font-weight:600;
+                  "
+                >
+                  ${members} anggota
+                </div>
+
+                <button
+                  type="button"
+                  class="btn-primary guru-ekstra-detail-btn"
+                  data-ekstra-id="${item.id}"
+                >
+                  Lihat Anggota
+                </button>
+
+              </div>
+            `;
+          })
+          .join("")}
+
+      </div>
+    `;
+
+    wrap.querySelectorAll(".guru-ekstra-detail-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset.ekstraId;
+
+        loadGuruEkstraDetail(id);
+      });
+    });
+  } catch (err) {
+    console.error("loadGuruEkstrakurikuler:", err);
+
+    wrap.style.display = "none";
+  }
+}
+
+async function loadGuruEkstraDetail(id) {
+  const wrap = document.getElementById("guruEkstraDetailWrap");
+
+  if (!wrap) return;
+
+  wrap.style.display = "block";
+
+  wrap.innerHTML = `
+    <div class="card">
+      Memuat anggota...
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`/api/public/extracurriculars/${id}/members-guru`, {
+      credentials: "include",
+    });
+
+    const d = await res.json();
+
+    if (!res.ok || !d.ok) {
+      throw new Error(d.error || "Gagal memuat anggota");
+    }
+
+    const item = d.data;
+    const members = d.members || [];
+
+    const day = EKSTRA_DAY_LABEL[item.day_of_week] || item.day_of_week || "-";
+
+    const start = formatEkstraTime(item.start_time);
+
+    const end = formatEkstraTime(item.end_time);
+
+    const activeMembers = members.filter((m) => m.status === "aktif").length;
+
+    wrap.innerHTML = `
+      <div class="card">
+
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:12px;
+            margin-bottom:16px;
+          "
+        >
+
+          <div>
+            <h2 style="margin:0">
+              ${escapeHtml(item.name)}
+            </h2>
+
+            <div
+              style="
+                color:#6b7280;
+                margin-top:4px;
+              "
+            >
+              ${day},
+              ${start}–${end}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="ghost"
+            id="closeGuruEkstraDetail"
+          >
+            Tutup
+          </button>
+
+        </div>
+
+
+        <div
+          style="
+            margin-bottom:16px;
+          "
+        >
+          <strong>
+            ${activeMembers}
+            /
+            ${item.max_members ?? "-"}
+            anggota aktif
+          </strong>
+        </div>
+
+
+        <div style="overflow-x:auto">
+
+          <table>
+
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>NIS</th>
+                <th>Nama Siswa</th>
+                <th>Kelas</th>
+                <th>Tanggal Bergabung</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+
+              ${
+                members.length
+                  ? members
+                      .map(
+                        (member, index) => `
+                          <tr>
+
+                            <td>
+                              ${index + 1}
+                            </td>
+
+                            <td>
+                              ${escapeHtml(member.nis)}
+                            </td>
+
+                            <td>
+                              ${escapeHtml(member.student_name)}
+                            </td>
+
+                            <td>
+                              ${escapeHtml(member.kelas_nama)}
+                            </td>
+
+                            <td>
+                              ${
+                                member.join_date
+                                  ? String(member.join_date).substring(0, 10)
+                                  : "-"
+                              }
+                            </td>
+
+                            <td>
+                              ${member.status === "aktif" ? "Aktif" : "Keluar"}
+                            </td>
+
+                          </tr>
+                        `,
+                      )
+                      .join("")
+                  : `
+                    <tr>
+                      <td
+                        colspan="6"
+                        style="
+                          text-align:center;
+                          color:#6b7280;
+                        "
+                      >
+                        Belum ada anggota.
+                      </td>
+                    </tr>
+                  `
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+    `;
+
+    document
+      .getElementById("closeGuruEkstraDetail")
+      ?.addEventListener("click", () => {
+        wrap.style.display = "none";
+        wrap.innerHTML = "";
+      });
+
+    wrap.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  } catch (err) {
+    console.error("loadGuruEkstraDetail:", err);
+
+    wrap.innerHTML = `
+      <div class="card">
+        <div
+          style="
+            color:#dc2626;
+            margin-bottom:10px;
+          "
+        >
+          Gagal memuat anggota ekstrakurikuler.
+        </div>
+
+        <button
+          type="button"
+          class="ghost"
+          id="closeGuruEkstraDetail"
+        >
+          Tutup
+        </button>
+      </div>
+    `;
+
+    document
+      .getElementById("closeGuruEkstraDetail")
+      ?.addEventListener("click", () => {
+        wrap.style.display = "none";
+        wrap.innerHTML = "";
+      });
+  }
+}
+
 async function initDashboard() {
   // Tampilkan info guru dari ME_DATA (identitas lengkap, mirip dashboard siswa)
   const period = await fetchActivePeriod();
   renderGuruProfile(period);
+  await loadGuruEkstrakurikuler();
 
   try {
     const res = await fetch("/api/guru/attendance/statistics", {
