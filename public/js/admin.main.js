@@ -3160,6 +3160,7 @@ function sched_renderAllLocalSchedules() {
       </div>
       <div class="controls">
         <button class="ghost" data-view="${idx}">Lihat</button>
+        <button class="ghost" data-download="${idx}">Download json</button>
         ${saved ? `<button class="ghost" disabled>✔ Tersimpan</button>` : `<button class="ghost" data-save="${idx}">Simpan ke DB</button>`}
         <button class="ghost" data-del="${idx}">Hapus</button>
       </div>
@@ -3173,6 +3174,25 @@ function sched_renderAllLocalSchedules() {
     btn.onclick = (e) => {
       const idx = Number(e.currentTarget.dataset.view);
       sched_renderScheduleDetail(sched_loadLocalSchedules()[idx]);
+    };
+  });
+
+  // download buttons
+  sched_schedulesWrap.querySelectorAll("[data-download]").forEach((btn) => {
+    btn.onclick = (e) => {
+      const idx = Number(e.currentTarget.dataset.download);
+      const data = sched_loadLocalSchedules()[idx];
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = (data.name || "jadwal").replace(/[^a-z0-9_\-]+/gi, "_");
+      a.href = url;
+      a.download = `${safeName}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     };
   });
 

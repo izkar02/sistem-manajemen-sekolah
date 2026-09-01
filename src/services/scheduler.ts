@@ -813,6 +813,8 @@ export function generateScheduleGA(
   req: ScheduleRequest,
   options?: GAOptions,
 ): GAResult {
+  const startTime = Date.now();
+
   const expectedMap = buildExpectedSessionsMap(req);
 
   let population: Chromosome[] = Array.from({ length: POPULATION_SIZE }, () =>
@@ -847,10 +849,13 @@ export function generateScheduleGA(
 
   best.fitness = calculateFitness(best, req, expectedMap);
 
+  const durationMs = Date.now() - startTime;
+
   return {
     assignments: best.genes,
     fitness: best.fitness,
     generations: GENERATIONS,
+    durationMs,
   };
 }
 export interface HardConstraintReport {

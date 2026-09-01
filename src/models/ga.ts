@@ -16,4 +16,5 @@ export interface GAResult {
   assignments: Gene[];
   fitness: number;
   generations: number;
+  durationMs: number; // lama waktu proses algoritma genetika berjalan (dalam milidetik)
 }
