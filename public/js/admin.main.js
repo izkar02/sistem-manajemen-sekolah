@@ -3160,7 +3160,7 @@ function sched_renderAllLocalSchedules() {
       </div>
       <div class="controls">
         <button class="ghost" data-view="${idx}">Lihat</button>
-        <button class="ghost" data-download="${idx}">Download json</button>
+        <button class="ghost" data-download="${idx}">Download</button>
         ${saved ? `<button class="ghost" disabled>✔ Tersimpan</button>` : `<button class="ghost" data-save="${idx}">Simpan ke DB</button>`}
         <button class="ghost" data-del="${idx}">Hapus</button>
       </div>
@@ -4093,8 +4093,38 @@ async function showEkstrakurikulerDetail(id) {
    DAFTAR SISWA UNTUK TAMBAH ANGGOTA
 ========================================================= */
 
+// menyimpan seluruh siswa hasil fetch, dipakai untuk filter kelas tanpa fetch ulang
+let ekskulAllStudents = [];
+
+function renderEkskulStudentOptions(students) {
+  const select = document.getElementById("ekskulStudentSelect");
+  if (!select) return;
+
+  const prevValue = select.value;
+
+  select.innerHTML = `<option value="">-- Pilih Siswa --</option>`;
+
+  students.forEach((student) => {
+    const option = document.createElement("option");
+
+    option.value = student.id;
+
+    option.textContent =
+      `${student.nis} — ${student.nama}` +
+      `${student.kelas_nama ? ` (${student.kelas_nama})` : ""}`;
+
+    select.appendChild(option);
+  });
+
+  // pertahankan pilihan sebelumnya kalau masih ada di daftar hasil filter
+  if (students.some((s) => String(s.id) === prevValue)) {
+    select.value = prevValue;
+  }
+}
+
 async function populateEkstrakurikulerStudents() {
   const select = document.getElementById("ekskulStudentSelect");
+  const kelasFilter = document.getElementById("ekskulKelasFilter");
 
   if (!select) return;
 
@@ -4110,20 +4140,48 @@ async function populateEkstrakurikulerStudents() {
     const json = await res.json();
 
     const students = json.data || [];
+    ekskulAllStudents = students;
 
-    select.innerHTML = `<option value="">-- Pilih Siswa --</option>`;
+    // isi dropdown filter kelas dari daftar kelas unik yang ada pada siswa
+    if (kelasFilter) {
+      const kelasMap = new Map();
+      students.forEach((s) => {
+        if (s.kelas_id && !kelasMap.has(s.kelas_id)) {
+          kelasMap.set(s.kelas_id, s.kelas_nama || `Kelas ${s.kelas_id}`);
+        }
+      });
 
-    students.forEach((student) => {
-      const option = document.createElement("option");
+      const prevKelasValue = kelasFilter.value;
+      kelasFilter.innerHTML = `<option value="">-- Semua Kelas --</option>`;
+      [...kelasMap.entries()]
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([id, nama]) => {
+          const opt = document.createElement("option");
+          opt.value = id;
+          opt.textContent = nama;
+          kelasFilter.appendChild(opt);
+        });
 
-      option.value = student.id;
+      if ([...kelasMap.keys()].some((id) => String(id) === prevKelasValue)) {
+        kelasFilter.value = prevKelasValue;
+      }
 
-      option.textContent =
-        `${student.nis} — ${student.nama}` +
-        `${student.kelas_nama ? ` (${student.kelas_nama})` : ""}`;
+      // pasang listener sekali saja
+      if (!kelasFilter.dataset.bound) {
+        kelasFilter.addEventListener("change", () => {
+          const kelasId = kelasFilter.value;
+          const filtered = kelasId
+            ? ekskulAllStudents.filter(
+                (s) => String(s.kelas_id) === String(kelasId),
+              )
+            : ekskulAllStudents;
+          renderEkskulStudentOptions(filtered);
+        });
+        kelasFilter.dataset.bound = "1";
+      }
+    }
 
-      select.appendChild(option);
-    });
+    renderEkskulStudentOptions(students);
   } catch (err) {
     console.error("populateEkstrakurikulerStudents:", err);
 
